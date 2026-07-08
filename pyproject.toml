@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyhomerun"
+version = "0.1.0"
+description = "Baseball statistics and MLB data for Python: sabermetrics calculations plus a zero-dependency client for the MLB Stats API."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "pyhomerun contributors" }]
+keywords = ["baseball", "mlb", "sabermetrics", "statistics", "sports"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/pyhomerun/pyhomerun"
+Documentation = "https://github.com/pyhomerun/pyhomerun#readme"
+Issues = "https://github.com/pyhomerun/pyhomerun/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pyhomerun = ["py.typed"]
