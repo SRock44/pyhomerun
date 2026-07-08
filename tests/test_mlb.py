@@ -158,6 +158,36 @@ class TestEndpoints(unittest.TestCase):
         client = self._client_returning({"teams": [{"id": 147, "name": "New York Yankees"}]})
         self.assertEqual(client.teams()[0]["id"], 147)
 
+    def test_play_by_play_unwraps_all_plays(self):
+        client = self._client_returning({"allPlays": [{"result": {"event": "Single"}}]})
+        plays = client.play_by_play(717465)
+        self.assertEqual(plays[0]["result"]["event"], "Single")
+
+    def test_venues_unwraps(self):
+        client = self._client_returning({"venues": [{"id": 3313, "name": "Yankee Stadium"}]})
+        self.assertEqual(client.venues()[0]["name"], "Yankee Stadium")
+
+    def test_awards_unwraps(self):
+        client = self._client_returning({"awards": [{"id": "ALMVP", "name": "AL MVP"}]})
+        self.assertEqual(client.awards()[0]["id"], "ALMVP")
+
+    def test_award_recipients_unwraps(self):
+        client = self._client_returning({"recipients": [{"player": {"fullName": "Shohei Ohtani"}}]})
+        recipients = client.award_recipients("ALMVP", season=2024)
+        self.assertEqual(recipients[0]["player"]["fullName"], "Shohei Ohtani")
+
+    def test_draft_flattens_rounds(self):
+        client = self._client_returning({
+            "drafts": {
+                "rounds": [
+                    {"picks": [{"pickNumber": 1}, {"pickNumber": 2}]},
+                    {"picks": [{"pickNumber": 31}]},
+                ]
+            }
+        })
+        picks = client.draft(2025)
+        self.assertEqual([p["pickNumber"] for p in picks], [1, 2, 31])
+
 
 class _SearchStubClient(MLBClient):
     """MLBClient with search_players replaced by canned responses."""

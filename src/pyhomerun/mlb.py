@@ -286,3 +286,40 @@ class MLBClient:
     def linescore(self, game_pk: int) -> JSONDict:
         """Inning-by-inning line score for a game."""
         return self.get(f"/game/{game_pk}/linescore")
+
+    def play_by_play(self, game_pk: int) -> List[JSONDict]:
+        """Every play of a game, in order (``gamePk`` from :meth:`schedule`).
+
+        Each play dict includes ``about`` (inning, half, event index),
+        ``result`` (event type, description, runs scored), and ``matchup``
+        (batter/pitcher). This is the play-by-play feed the RE24 table in
+        :mod:`pyhomerun.situational` is meant to be paired with.
+        """
+        return self.get(f"/game/{game_pk}/playByPlay").get("allPlays", [])
+
+    # -- reference data --------------------------------------------------
+
+    def venues(self) -> List[JSONDict]:
+        """All MLB ballparks, with location and dimensions where available."""
+        return self.get("/venues").get("venues", [])
+
+    def awards(self) -> List[JSONDict]:
+        """All awards the API knows about (MVP, Cy Young, Gold Glove, ...)."""
+        return self.get("/awards").get("awards", [])
+
+    def award_recipients(self, award_id: str, season: Optional[int] = None) -> List[JSONDict]:
+        """Winners of one award (``award_id`` from :meth:`awards`, e.g. ``"MVP"``).
+
+        Args:
+            award_id: The award's id, e.g. ``"ALMVP"``, ``"NLCY"``.
+            season: Restrict to one season; omit for every year on record.
+        """
+        return self.get(f"/awards/{award_id}/recipients", season=season).get("recipients", [])
+
+    def draft(self, year: int) -> List[JSONDict]:
+        """Every pick of the MLB amateur draft for ``year``."""
+        rounds = self.get(f"/draft/{year}").get("drafts", {}).get("rounds", [])
+        picks: List[JSONDict] = []
+        for round_ in rounds:
+            picks.extend(round_.get("picks", []))
+        return picks
