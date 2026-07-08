@@ -281,7 +281,7 @@ python -m unittest discover tests -v
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for what's planned — a Monte Carlo season/playoff simulator, standings/schedule helpers, a `sqlite3`-backed local cache, and more, all still zero third-party dependencies. That constraint is the project's core mission, not a starting default.
+See [ROADMAP.md](ROADMAP.md) for what's planned — Statcast and historical/minor-league data next, a season/playoff simulator after that, and a planned 1.0.0 with ML-friendly bulk export and a stable public API. All still zero third-party dependencies. That constraint is the project's core mission, not a starting default.
 
 ## Contributing
 
