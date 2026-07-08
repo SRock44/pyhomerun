@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (2026-07-07)
+
+Still zero dependencies.
+
+- `BattingLine` / `PitchingLine` stat-line dataclasses: build from raw counts or directly from MLB Stats API splits (`from_mlb`), get every derived stat as a property/method, and combine lines with `+`
+- New batting stats: wRC, wRC+ (with park factor), Runs Created
+- New pitching stats: ERA+, ERA-, xFIP
+- New `team` module: run differential, Pythagorean expectation, Pythagenpat exponent, expected wins, magic number
+- `WobaWeights` gains `league_runs_per_pa` (used by wRC/wRC+)
+
 ## 0.1.0 (2026-07-07)
 
 Initial release.

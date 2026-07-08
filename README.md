@@ -78,21 +78,50 @@ for division in mlb.standings(season=2025):
         print(record["team"]["name"], record["wins"], record["losses"])
 ```
 
-### Put them together
+### Put them together: stat lines
+
+`BattingLine` and `PitchingLine` bundle counting stats and expose every derived stat — and they build straight from API responses, so there's no field-mapping glue:
 
 ```python
 import pyhomerun as bb
 
 mlb = bb.MLBClient()
 player = mlb.search_players("Juan Soto")[0]
-s = mlb.player_stats(player["id"], group="hitting", season=2025)[0]["stat"]
+split = mlb.player_stats(player["id"], group="hitting", season=2025)[0]
 
-singles = s["hits"] - s["doubles"] - s["triples"] - s["homeRuns"]
-w = bb.woba(walks=s["baseOnBalls"], hit_by_pitch=s["hitByPitch"],
-            singles=singles, doubles=s["doubles"], triples=s["triples"],
-            home_runs=s["homeRuns"], at_bats=s["atBats"],
-            intentional_walks=s["intentionalWalks"], sacrifice_flies=s["sacFlies"])
-print(f'{player["fullName"]} wOBA: {w:.3f}')
+line = bb.BattingLine.from_mlb(split)
+print(player["fullName"], line.slash())      # 0.266/0.396/0.525
+print(f"wOBA {line.woba():.3f}  wRC+ {line.wrc_plus():.0f}  BABIP {line.babip:.3f}")
+```
+
+Lines add together, so combining splits or seasons is just `+`:
+
+```python
+career = bb.BattingLine()
+for split in mlb.player_stats(player["id"], group="hitting", stat_type="yearByYear"):
+    career += bb.BattingLine.from_mlb(split)
+print(career.slash(), career.home_runs)
+```
+
+You can also build lines by hand — every field defaults to 0:
+
+```python
+line = bb.BattingLine(at_bats=550, hits=150, doubles=30, triples=5, home_runs=25,
+                      walks=70, hit_by_pitch=5, strikeouts=120, sacrifice_flies=5)
+line.ops                       # 0.839...
+line.wraa()                    # runs above average
+
+arm = bb.PitchingLine(outs=540, hits=160, earned_runs=65, walks=50,
+                      strikeouts=190, home_runs=18, hit_by_pitch=5)
+arm.era, arm.whip, arm.fip()   # (3.25, 1.16..., 3.27...)
+```
+
+### Team math
+
+```python
+bb.pythagorean_expectation(800, 700)      # 0.566 expected win pct
+bb.expected_wins(800, 700, games=162)     # 91.2 (Pythagenpat exponent)
+bb.magic_number(leader_wins=90, second_place_losses=60)   # 13
 ```
 
 ## API reference
@@ -113,6 +142,8 @@ Every function has a full docstring with its formula and a worked example (`help
 | `babip(h, hr, ab, k, sf)` | BABIP |
 | `woba(...)` | wOBA (customizable linear weights) |
 | `wraa(woba, pa)` | wRAA (runs above average) |
+| `wrc(woba, pa)` / `wrc_plus(woba, park_factor)` | wRC / wRC+ (100 = league average) |
+| `runs_created(h, bb, tb, ab)` | Runs Created (Bill James) |
 | `plate_appearances(...)` | PA |
 | `walk_rate(bb, pa)` / `strikeout_rate(k, pa)` | BB% / K% |
 | `stolen_base_percentage(sb, cs)` | SB% |
@@ -123,8 +154,10 @@ Every function has a full docstring with its formula and a worked example (`help
 |---|---|
 | `innings(6.2)` / `innings_from_outs(20)` | Box-score notation → true innings |
 | `era(er, ip)` | ERA |
+| `era_plus(era, lg_era)` / `era_minus(era, lg_era)` | ERA+ / ERA- (100 = league average) |
 | `whip(bb, h, ip)` | WHIP |
 | `fip(hr, bb, hbp, k, ip)` | FIP (customizable constant) |
+| `xfip(fb, bb, hbp, k, ip)` | xFIP (league HR/FB rate) |
 | `k_per_9` / `bb_per_9` / `hr_per_9` / `h_per_9` | Per-9 rates |
 | `k_bb_ratio(k, bb)` | K/BB |
 | `left_on_base_percentage(...)` | LOB% |
@@ -137,6 +170,25 @@ Every function has a full docstring with its formula and a worked example (`help
 | `fielding_percentage(po, a, e)` | FPCT |
 | `range_factor_per_game(po, a, g)` / `range_factor_per_9(po, a, inn)` | RF/G, RF/9 |
 | `caught_stealing_percentage(cs, sb)` | CS% |
+
+### Team
+
+| Function | Statistic |
+|---|---|
+| `run_differential(rs, ra)` | Run differential |
+| `pythagorean_expectation(rs, ra, exponent=2)` | Pythagorean win % |
+| `pythagenpat_exponent(rs, ra, g)` | Environment-aware exponent |
+| `expected_wins(rs, ra, g)` | Expected win total (Pythagenpat) |
+| `magic_number(leader_wins, second_losses)` | Clinch magic number |
+
+### Stat lines
+
+| Class | What it does |
+|---|---|
+| `BattingLine` | Counting stats in; `avg`, `obp`, `slg`, `ops`, `iso`, `babip`, `walk_rate`, ... as properties, plus `woba()`, `wraa()`, `wrc()`, `wrc_plus()`, `runs_created()`, `slash()` |
+| `PitchingLine` | Stores innings as `outs` for exact addition; `era`, `whip`, `k_per_9`, `lob%`, ... as properties, plus `fip()`, `era_plus()`, `era_minus()` |
+| `*.from_mlb(split)` | Build either line directly from an `MLBClient.player_stats()` split |
+| `line + line` | Combine splits/seasons field-by-field |
 
 ### MLB Stats API client
 
