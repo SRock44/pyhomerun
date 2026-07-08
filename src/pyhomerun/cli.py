@@ -8,6 +8,7 @@ Installed as a console command by pip, and also runnable as
     pyhomerun player "Arron Judge"       # fuzzy: finds Aaron Judge
     pyhomerun teams
     pyhomerun roster "yankees"
+    pyhomerun export hitting "yankees" --out yankees.csv
 
 Data comes from the free MLB Stats API; responses are cached for five
 minutes so repeated commands are fast and polite.
@@ -21,6 +22,7 @@ import sys
 from typing import Any, Dict, List, Optional, Sequence
 
 from . import __version__
+from .export import to_csv
 from .lines import BattingLine, PitchingLine
 from .mlb import MLBAPIError, MLBClient
 
@@ -149,6 +151,24 @@ def _cmd_roster(mlb: MLBClient, args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_export(mlb: MLBClient, args: argparse.Namespace) -> int:
+    team = _find_team(mlb, " ".join(args.team))
+    line_cls = BattingLine if args.group == "hitting" else PitchingLine
+    lines: Dict[str, Any] = {}
+    for entry in mlb.roster(team["id"], season=args.season):
+        player_id = entry["person"]["id"]
+        splits = mlb.player_stats(player_id, group=args.group, season=args.season)
+        if splits:
+            lines[entry["person"]["fullName"]] = line_cls.from_mlb(splits[0])
+    text = to_csv(lines)
+    if args.out:
+        with open(args.out, "w", newline="", encoding="utf-8") as handle:
+            handle.write(text or "")
+    else:
+        sys.stdout.write(text or "")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pyhomerun",
@@ -177,6 +197,13 @@ def _build_parser() -> argparse.ArgumentParser:
     roster = sub.add_parser("roster", help="a team's active roster")
     roster.add_argument("team", nargs="+", help="team name, abbreviation, or id")
     roster.set_defaults(func=_cmd_roster)
+
+    export = sub.add_parser("export", help="export a team's stat lines to CSV")
+    export.add_argument("group", choices=("hitting", "pitching"))
+    export.add_argument("team", nargs="+", help="team name, abbreviation, or id")
+    export.add_argument("--season", type=int, default=None)
+    export.add_argument("--out", default=None, help="write to a file instead of stdout")
+    export.set_defaults(func=_cmd_export)
 
     return parser
 
