@@ -2,6 +2,7 @@
 
 **Baseball statistics and MLB data for Python — with zero dependencies.**
 
+[![PyPI](https://img.shields.io/pypi/v/pyhomerun.svg)](https://pypi.org/project/pyhomerun/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
@@ -13,6 +14,8 @@
 It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python.
 
 ## Installation
+
+Available on PyPI: https://pypi.org/project/pyhomerun/
 
 ```bash
 pip install pyhomerun
