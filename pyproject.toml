@@ -28,9 +28,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pyhomerun/pyhomerun"
-Documentation = "https://github.com/pyhomerun/pyhomerun#readme"
-Issues = "https://github.com/pyhomerun/pyhomerun/issues"
+Homepage = "https://github.com/SRock44/pyhomerun"
+Documentation = "https://github.com/SRock44/pyhomerun#readme"
+Issues = "https://github.com/SRock44/pyhomerun/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

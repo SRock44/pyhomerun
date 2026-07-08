@@ -21,7 +21,7 @@ pip install pyhomerun
 Or straight from source:
 
 ```bash
-git clone https://github.com/pyhomerun/pyhomerun
+git clone https://github.com/SRock44/pyhomerun
 cd pyhomerun
 pip install .
 ```

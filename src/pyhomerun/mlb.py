@@ -28,7 +28,7 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 __all__ = ["MLBClient", "MLBAPIError"]
 
 _BASE_URL = "https://statsapi.mlb.com/api/v1"
-_USER_AGENT = "pyhomerun (https://github.com/pyhomerun/pyhomerun)"
+_USER_AGENT = "pyhomerun (https://github.com/SRock44/pyhomerun)"
 
 #: sportId for Major League Baseball (the API also serves minor leagues).
 MLB_SPORT_ID = 1

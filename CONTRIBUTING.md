@@ -12,7 +12,7 @@ Thanks for helping out! This project aims to stay small, correct, and dependency
 ## Development setup
 
 ```bash
-git clone https://github.com/pyhomerun/pyhomerun
+git clone https://github.com/SRock44/pyhomerun
 cd pyhomerun
 pip install -e .
 python -m unittest discover tests -v
