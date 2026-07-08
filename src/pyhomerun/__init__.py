@@ -25,6 +25,7 @@ from .batting import (
     ops,
     ops_plus,
     plate_appearances,
+    runs_created,
     slugging_percentage,
     stolen_base_percentage,
     strikeout_rate,
@@ -32,6 +33,8 @@ from .batting import (
     walk_rate,
     woba,
     wraa,
+    wrc,
+    wrc_plus,
 )
 from .constants import DEFAULT_FIP_CONSTANT, DEFAULT_WOBA_WEIGHTS, WobaWeights
 from .fielding import (
@@ -40,10 +43,13 @@ from .fielding import (
     range_factor_per_9,
     range_factor_per_game,
 )
+from .lines import BattingLine, PitchingLine
 from .mlb import MLBAPIError, MLBClient
 from .pitching import (
     bb_per_9,
     era,
+    era_minus,
+    era_plus,
     fip,
     game_score,
     h_per_9,
@@ -54,9 +60,17 @@ from .pitching import (
     k_per_9,
     left_on_base_percentage,
     whip,
+    xfip,
+)
+from .team import (
+    expected_wins,
+    magic_number,
+    pythagenpat_exponent,
+    pythagorean_expectation,
+    run_differential,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # batting
@@ -70,6 +84,9 @@ __all__ = [
     "babip",
     "woba",
     "wraa",
+    "wrc",
+    "wrc_plus",
+    "runs_created",
     "plate_appearances",
     "walk_rate",
     "strikeout_rate",
@@ -78,8 +95,11 @@ __all__ = [
     "innings",
     "innings_from_outs",
     "era",
+    "era_plus",
+    "era_minus",
     "whip",
     "fip",
+    "xfip",
     "k_per_9",
     "bb_per_9",
     "hr_per_9",
@@ -87,6 +107,15 @@ __all__ = [
     "k_bb_ratio",
     "left_on_base_percentage",
     "game_score",
+    # team
+    "run_differential",
+    "pythagorean_expectation",
+    "pythagenpat_exponent",
+    "expected_wins",
+    "magic_number",
+    # stat lines
+    "BattingLine",
+    "PitchingLine",
     # fielding
     "fielding_percentage",
     "range_factor_per_game",
