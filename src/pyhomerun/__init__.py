@@ -62,6 +62,8 @@ from .pitching import (
     whip,
     xfip,
 )
+from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
+from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
 from .team import (
     expected_wins,
     magic_number,
@@ -128,5 +130,10 @@ __all__ = [
     # MLB Stats API
     "MLBClient",
     "MLBAPIError",
+    # situational
+    "BaseOutState",
+    "RE24_TABLE",
+    "run_expectancy",
+    "run_value",
     "__version__",
 ]

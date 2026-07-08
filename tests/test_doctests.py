@@ -3,11 +3,11 @@
 import doctest
 import unittest
 
-from pyhomerun import batting, constants, fielding, lines, pitching, team
+from pyhomerun import batting, constants, fielding, lines, pitching, situational, team
 
 
 def load_tests(loader, tests, ignore):
-    for module in (batting, pitching, fielding, constants, lines, team):
+    for module in (batting, pitching, fielding, constants, lines, team, situational):
         tests.addTests(doctest.DocTestSuite(module))
     return tests
 
