@@ -62,6 +62,55 @@ class TestGet(unittest.TestCase):
         self.assertEqual(request.full_url, "http://localhost:9000/api/v1/teams")
 
 
+class TestRetries(unittest.TestCase):
+    def test_no_retry_by_default(self):
+        client = MLBClient()
+        error = urllib.error.HTTPError("url", 503, "Service Unavailable", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=error) as urlopen:
+            with self.assertRaises(MLBAPIError):
+                client.get("/teams")
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_retries_5xx_then_succeeds(self):
+        client = MLBClient(retries=2, backoff_factor=0)
+        error = urllib.error.HTTPError("url", 503, "Service Unavailable", {}, None)
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=[error, _fake_response({"teams": []})]
+        ) as urlopen:
+            with mock.patch("time.sleep") as sleep:
+                result = client.get("/teams")
+        self.assertEqual(result, {"teams": []})
+        self.assertEqual(urlopen.call_count, 2)
+        sleep.assert_called_once_with(0)
+
+    def test_does_not_retry_4xx(self):
+        client = MLBClient(retries=3)
+        error = urllib.error.HTTPError("url", 404, "Not Found", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=error) as urlopen:
+            with self.assertRaises(MLBAPIError):
+                client.get("/nope")
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_retries_network_errors(self):
+        client = MLBClient(retries=1, backoff_factor=0)
+        error = urllib.error.URLError("timed out")
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=[error, _fake_response({})]
+        ) as urlopen:
+            with mock.patch("time.sleep"):
+                client.get("/teams")
+        self.assertEqual(urlopen.call_count, 2)
+
+    def test_exhausts_retries_then_raises(self):
+        client = MLBClient(retries=2, backoff_factor=0)
+        error = urllib.error.HTTPError("url", 500, "Internal Server Error", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=error) as urlopen:
+            with mock.patch("time.sleep"):
+                with self.assertRaises(MLBAPIError):
+                    client.get("/teams")
+        self.assertEqual(urlopen.call_count, 3)
+
+
 class TestEndpoints(unittest.TestCase):
     def _client_returning(self, payload):
         client = MLBClient()

@@ -56,6 +56,13 @@ class MLBClient:
             that re-run, and polite to MLB's servers.
         cache_dir: Where cached responses live. Defaults to a
             ``pyhomerun-cache`` directory under the system temp dir.
+        retries: Number of retries for transient failures (5xx responses
+            or network errors like timeouts/DNS failures). ``0`` (the
+            default) disables retrying, which is right for a CLI's
+            single-shot commands; scripts doing bulk fetches may want a
+            few retries with backoff.
+        backoff_factor: Base delay in seconds between retries, doubled
+            after each attempt (``backoff_factor * 2 ** attempt``).
     """
 
     def __init__(
@@ -64,6 +71,8 @@ class MLBClient:
         base_url: str = _BASE_URL,
         cache_ttl: Optional[float] = None,
         cache_dir: Union[str, Path, None] = None,
+        retries: int = 0,
+        backoff_factor: float = 0.5,
     ) -> None:
         self.timeout = timeout
         self.base_url = base_url.rstrip("/")
@@ -71,6 +80,8 @@ class MLBClient:
         self.cache_dir = (
             Path(cache_dir) if cache_dir else Path(tempfile.gettempdir()) / "pyhomerun-cache"
         )
+        self.retries = retries
+        self.backoff_factor = backoff_factor
 
     # -- plumbing ----------------------------------------------------------
 
@@ -89,19 +100,39 @@ class MLBClient:
             cached = self._cache_read(url)
             if cached is not None:
                 return cached
-        request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                data: JSONDict = json.load(response)
-        except urllib.error.HTTPError as exc:
-            raise MLBAPIError(f"MLB Stats API returned HTTP {exc.code} for {url}") from exc
-        except urllib.error.URLError as exc:
-            raise MLBAPIError(f"could not reach the MLB Stats API: {exc.reason}") from exc
-        except json.JSONDecodeError as exc:
-            raise MLBAPIError(f"MLB Stats API returned invalid JSON for {url}") from exc
+        data = self._request(url)
         if self.cache_ttl:
             self._cache_write(url, data)
         return data
+
+    def _request(self, url: str) -> JSONDict:
+        """Fetch and parse one URL, retrying transient failures.
+
+        5xx responses and network errors (timeouts, DNS failures, ...)
+        are retried up to :attr:`retries` times with exponential backoff;
+        4xx responses and bad JSON are never retried.
+        """
+        request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+        attempt = 0
+        while True:
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    result: JSONDict = json.load(response)
+                    return result
+            except urllib.error.HTTPError as exc:
+                if exc.code >= 500 and attempt < self.retries:
+                    attempt += 1
+                    time.sleep(self.backoff_factor * 2 ** (attempt - 1))
+                    continue
+                raise MLBAPIError(f"MLB Stats API returned HTTP {exc.code} for {url}") from exc
+            except urllib.error.URLError as exc:
+                if attempt < self.retries:
+                    attempt += 1
+                    time.sleep(self.backoff_factor * 2 ** (attempt - 1))
+                    continue
+                raise MLBAPIError(f"could not reach the MLB Stats API: {exc.reason}") from exc
+            except json.JSONDecodeError as exc:
+                raise MLBAPIError(f"MLB Stats API returned invalid JSON for {url}") from exc
 
     def _cache_path(self, url: str) -> Path:
         return self.cache_dir / (hashlib.sha256(url.encode()).hexdigest() + ".json")
