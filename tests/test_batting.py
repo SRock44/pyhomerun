@@ -93,6 +93,41 @@ class TestWraa(unittest.TestCase):
         self.assertGreater(bb.wraa(0.400, 600), 0.0)
 
 
+class TestWrc(unittest.TestCase):
+    def test_league_average_hitter_creates_league_runs(self):
+        weights = bb.DEFAULT_WOBA_WEIGHTS
+        value = bb.wrc(weights.league_woba, 600)
+        self.assertAlmostEqual(value, weights.league_runs_per_pa * 600, places=6)
+
+    def test_matches_wraa_plus_baseline(self):
+        weights = bb.DEFAULT_WOBA_WEIGHTS
+        expected = bb.wraa(0.380, 600) + weights.league_runs_per_pa * 600
+        self.assertAlmostEqual(bb.wrc(0.380, 600), expected, places=6)
+
+
+class TestWrcPlus(unittest.TestCase):
+    def test_league_average_is_100(self):
+        weights = bb.DEFAULT_WOBA_WEIGHTS
+        self.assertAlmostEqual(bb.wrc_plus(weights.league_woba), 100.0, places=6)
+
+    def test_above_average(self):
+        self.assertGreater(bb.wrc_plus(0.400), 100.0)
+
+    def test_hitters_park_lowers_wrc_plus(self):
+        neutral = bb.wrc_plus(0.340, park_factor=1.0)
+        hitters_park = bb.wrc_plus(0.340, park_factor=1.05)
+        self.assertLess(hitters_park, neutral)
+
+
+class TestRunsCreated(unittest.TestCase):
+    def test_matches_formula(self):
+        value = bb.runs_created(hits=150, walks=70, total_bases_=265, at_bats=550)
+        self.assertAlmostEqual(value, 220 * 265 / 620, places=6)
+
+    def test_zero_denominator(self):
+        self.assertEqual(bb.runs_created(0, 0, 0, 0), 0.0)
+
+
 class TestRatesAndCounts(unittest.TestCase):
     def test_plate_appearances(self):
         pa = bb.plate_appearances(at_bats=550, walks=70, hit_by_pitch=5,

@@ -22,6 +22,9 @@ __all__ = [
     "babip",
     "woba",
     "wraa",
+    "wrc",
+    "wrc_plus",
+    "runs_created",
     "plate_appearances",
     "walk_rate",
     "strikeout_rate",
@@ -212,6 +215,69 @@ def wraa(
     if not weights.woba_scale:
         return 0.0
     return ((woba_ - weights.league_woba) / weights.woba_scale) * plate_appearances_
+
+
+def wrc(
+    woba_: float,
+    plate_appearances_: int,
+    weights: WobaWeights = DEFAULT_WOBA_WEIGHTS,
+) -> float:
+    """Weighted runs created (wRC): total offensive runs contributed.
+
+    Like :func:`wraa` but measured against zero rather than league
+    average, so an average hitter gets credit for the runs an average
+    hitter produces.
+
+    Formula: ``((wOBA - lgwOBA) / wOBA scale + lgR/PA) * PA``
+
+    >>> round(wrc(0.340, 600), 1)
+    84.7
+    """
+    if not weights.woba_scale:
+        return 0.0
+    per_pa = (woba_ - weights.league_woba) / weights.woba_scale + weights.league_runs_per_pa
+    return per_pa * plate_appearances_
+
+
+def wrc_plus(
+    woba_: float,
+    park_factor: float = 1.0,
+    weights: WobaWeights = DEFAULT_WOBA_WEIGHTS,
+) -> float:
+    """wRC+ — run creation normalized so 100 is league average.
+
+    Each point above/below 100 is one percent better/worse than the
+    league-average hitter. ``park_factor`` is the batter's home park
+    factor (1.00 = neutral); values above 1 (hitter's parks) lower wRC+.
+
+    Formula::
+
+        100 * (wRAA/PA + lgR/PA + (1 - PF) * lgR/PA) / (lgR/PA)
+
+    (The full FanGraphs version also uses league-specific wRC/PA in the
+    denominator; this uses overall lgR/PA, which matches closely.)
+
+    >>> round(wrc_plus(0.340), 1)
+    120.7
+    >>> round(wrc_plus(DEFAULT_WOBA_WEIGHTS.league_woba), 1)
+    100.0
+    """
+    league_rpa = weights.league_runs_per_pa
+    if not weights.woba_scale or not league_rpa:
+        return 0.0
+    wraa_per_pa = (woba_ - weights.league_woba) / weights.woba_scale
+    return 100 * (wraa_per_pa + league_rpa + (1 - park_factor) * league_rpa) / league_rpa
+
+
+def runs_created(hits: int, walks: int, total_bases_: int, at_bats: int) -> float:
+    """Runs created (RC), Bill James's original estimate of runs produced.
+
+    Formula: ``(H + BB) * TB / (AB + BB)``
+
+    >>> round(runs_created(hits=150, walks=70, total_bases_=265, at_bats=550), 1)
+    94.0
+    """
+    return _safe_div((hits + walks) * total_bases_, at_bats + walks)
 
 
 def plate_appearances(

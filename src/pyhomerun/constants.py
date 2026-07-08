@@ -32,6 +32,8 @@ class WobaWeights:
         home_run: Run value of a home run.
         league_woba: League-average wOBA for the season (used by wRAA).
         woba_scale: Scale factor mapping wOBA points to runs (used by wRAA).
+        league_runs_per_pa: League-average runs scored per plate appearance
+            (used by wRC and wRC+).
     """
 
     bb: float
@@ -42,6 +44,7 @@ class WobaWeights:
     home_run: float
     league_woba: float
     woba_scale: float
+    league_runs_per_pa: float = 0.117
 
 
 #: Representative modern-era (approximately 2024) league weights.
@@ -56,6 +59,7 @@ DEFAULT_WOBA_WEIGHTS = WobaWeights(
     home_run=2.05,
     league_woba=0.310,
     woba_scale=1.24,
+    league_runs_per_pa=0.117,
 )
 
 #: Representative modern-era FIP constant (the value that puts FIP on the
