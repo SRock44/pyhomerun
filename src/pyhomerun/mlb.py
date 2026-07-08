@@ -19,10 +19,15 @@ MLB copyright notice: http://gdx.mlb.com/components/copyright.txt
 
 from __future__ import annotations
 
+import difflib
+import hashlib
 import json
+import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
 __all__ = ["MLBClient", "MLBAPIError"]
@@ -46,11 +51,26 @@ class MLBClient:
     Args:
         timeout: Per-request timeout in seconds.
         base_url: Override the API root (useful for testing/proxies).
+        cache_ttl: If set, successful responses are cached on disk and
+            reused for this many seconds. Great for notebooks and scripts
+            that re-run, and polite to MLB's servers.
+        cache_dir: Where cached responses live. Defaults to a
+            ``pyhomerun-cache`` directory under the system temp dir.
     """
 
-    def __init__(self, timeout: float = 10.0, base_url: str = _BASE_URL) -> None:
+    def __init__(
+        self,
+        timeout: float = 10.0,
+        base_url: str = _BASE_URL,
+        cache_ttl: Optional[float] = None,
+        cache_dir: Union[str, Path, None] = None,
+    ) -> None:
         self.timeout = timeout
         self.base_url = base_url.rstrip("/")
+        self.cache_ttl = cache_ttl
+        self.cache_dir = (
+            Path(cache_dir) if cache_dir else Path(tempfile.gettempdir()) / "pyhomerun-cache"
+        )
 
     # -- plumbing ----------------------------------------------------------
 
@@ -65,16 +85,44 @@ class MLBClient:
         url = f"{self.base_url}/{path.lstrip('/')}"
         if query:
             url = f"{url}?{urllib.parse.urlencode(query)}"
+        if self.cache_ttl:
+            cached = self._cache_read(url)
+            if cached is not None:
+                return cached
         request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return json.load(response)
+                data: JSONDict = json.load(response)
         except urllib.error.HTTPError as exc:
             raise MLBAPIError(f"MLB Stats API returned HTTP {exc.code} for {url}") from exc
         except urllib.error.URLError as exc:
             raise MLBAPIError(f"could not reach the MLB Stats API: {exc.reason}") from exc
         except json.JSONDecodeError as exc:
             raise MLBAPIError(f"MLB Stats API returned invalid JSON for {url}") from exc
+        if self.cache_ttl:
+            self._cache_write(url, data)
+        return data
+
+    def _cache_path(self, url: str) -> Path:
+        return self.cache_dir / (hashlib.sha256(url.encode()).hexdigest() + ".json")
+
+    def _cache_read(self, url: str) -> Optional[JSONDict]:
+        try:
+            entry = json.loads(self._cache_path(url).read_text("utf-8"))
+            if time.time() - entry["time"] <= (self.cache_ttl or 0):
+                return entry["data"]  # type: ignore[no-any-return]
+        except (OSError, ValueError, KeyError):
+            pass  # missing, corrupt, or stale cache entries are simply misses
+        return None
+
+    def _cache_write(self, url: str, data: JSONDict) -> None:
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            self._cache_path(url).write_text(
+                json.dumps({"time": time.time(), "data": data}), "utf-8"
+            )
+        except OSError:
+            pass  # caching is best-effort; never fail the request over it
 
     # -- players -----------------------------------------------------------
 
@@ -85,6 +133,38 @@ class MLBClient:
         ``currentTeam`` (when active), and more.
         """
         return self.get("/people/search", names=name).get("people", [])
+
+    def find_player(self, name: str) -> JSONDict:
+        """Best-match player lookup, tolerant of misspellings.
+
+        Tries the API's own search first; if that finds nothing, searches
+        on each name part separately and ranks every candidate against
+        the full query with ``difflib``, returning the closest match.
+        This recovers from a typo in *one* name part as long as the other
+        part still prefix-matches (e.g. "Arron Judge" or "Aaron Jugde"
+        both resolve to Aaron Judge). It can't recover a typo that breaks
+        the leading letters of every part (e.g. "aron jugde"), since the
+        MLB API's own search is prefix-based and there's no local name
+        index to fall back on. Raises :class:`MLBAPIError` when nothing
+        plausible is found.
+        """
+        people = self.search_players(name)
+        if not people:
+            candidates: Dict[int, JSONDict] = {}
+            for token in name.split():
+                if len(token) < 3:
+                    continue
+                for person in self.search_players(token):
+                    candidates[person["id"]] = person
+            people = list(candidates.values())
+        if not people:
+            raise MLBAPIError(f"no player found matching {name!r}")
+        return max(
+            people,
+            key=lambda p: difflib.SequenceMatcher(
+                None, name.lower(), str(p.get("fullName", "")).lower()
+            ).ratio(),
+        )
 
     def player(self, player_id: int) -> JSONDict:
         """Biographical info for one player (bats/throws, birth date, ...)."""

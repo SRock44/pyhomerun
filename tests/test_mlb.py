@@ -6,8 +6,10 @@ responses so the suite runs anywhere, instantly.
 
 import io
 import json
+import tempfile
 import unittest
 import urllib.error
+from pathlib import Path
 from unittest import mock
 
 from pyhomerun import MLBAPIError, MLBClient
@@ -106,6 +108,94 @@ class TestEndpoints(unittest.TestCase):
     def test_teams_and_roster_unwrap(self):
         client = self._client_returning({"teams": [{"id": 147, "name": "New York Yankees"}]})
         self.assertEqual(client.teams()[0]["id"], 147)
+
+
+class _SearchStubClient(MLBClient):
+    """MLBClient with search_players replaced by canned responses."""
+
+    def __init__(self, responses):
+        super().__init__()
+        self.responses = responses
+        self.queries = []
+
+    def search_players(self, name):
+        self.queries.append(name)
+        return self.responses.get(name, [])
+
+
+class TestFindPlayer(unittest.TestCase):
+    JUDGE = {"id": 592450, "fullName": "Aaron Judge"}
+    BOONE = {"id": 111, "fullName": "Aaron Boone"}
+
+    def test_direct_hit_uses_api_search(self):
+        client = _SearchStubClient({"Aaron Judge": [self.JUDGE]})
+        self.assertEqual(client.find_player("Aaron Judge"), self.JUDGE)
+
+    def test_misspelling_falls_back_to_tokens_and_fuzzy_ranks(self):
+        client = _SearchStubClient({"Judge": [self.JUDGE], "Aaron": [self.BOONE, self.JUDGE]})
+        self.assertEqual(client.find_player("Arron Judge"), self.JUDGE)
+
+    def test_short_tokens_skipped(self):
+        client = _SearchStubClient({"Judge": [self.JUDGE]})
+        client.find_player("AJ Judge")
+        self.assertNotIn("AJ", client.queries)
+
+    def test_no_match_raises(self):
+        client = _SearchStubClient({})
+        with self.assertRaises(MLBAPIError):
+            client.find_player("Nobody Realman")
+
+
+class TestCaching(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.client = MLBClient(cache_ttl=3600, cache_dir=self.tmp.name)
+
+    def test_second_call_served_from_cache(self):
+        with mock.patch(
+            "urllib.request.urlopen", return_value=_fake_response({"teams": [1]})
+        ) as urlopen:
+            first = self.client.get("/teams", sportId=1)
+        with mock.patch("urllib.request.urlopen") as urlopen_again:
+            second = self.client.get("/teams", sportId=1)
+        self.assertEqual(first, second)
+        self.assertEqual(urlopen.call_count, 1)
+        urlopen_again.assert_not_called()
+
+    def test_stale_entry_refetches(self):
+        with mock.patch("urllib.request.urlopen", return_value=_fake_response({"v": 1})):
+            self.client.get("/teams")
+        # Age the single cache entry past the TTL
+        cache_file = next(Path(self.tmp.name).glob("*.json"))
+        entry = json.loads(cache_file.read_text("utf-8"))
+        entry["time"] -= 7200
+        cache_file.write_text(json.dumps(entry), "utf-8")
+        with mock.patch(
+            "urllib.request.urlopen", return_value=_fake_response({"v": 2})
+        ) as urlopen:
+            refreshed = self.client.get("/teams")
+        self.assertEqual(refreshed, {"v": 2})
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_corrupt_cache_entry_is_a_miss(self):
+        with mock.patch("urllib.request.urlopen", return_value=_fake_response({"v": 1})):
+            self.client.get("/teams")
+        next(Path(self.tmp.name).glob("*.json")).write_text("not json", "utf-8")
+        with mock.patch(
+            "urllib.request.urlopen", return_value=_fake_response({"v": 2})
+        ) as urlopen:
+            self.assertEqual(self.client.get("/teams"), {"v": 2})
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_caching_disabled_by_default(self):
+        client = MLBClient()
+        with mock.patch(
+            "urllib.request.urlopen", side_effect=lambda *a, **k: _fake_response({})
+        ) as urlopen:
+            client.get("/teams")
+            client.get("/teams")
+        self.assertEqual(urlopen.call_count, 2)
 
 
 if __name__ == "__main__":

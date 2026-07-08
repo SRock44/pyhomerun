@@ -6,10 +6,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
-`pyhomerun` does two things:
+`pyhomerun` does three things:
 
-1. **Sabermetrics** — pure functions for batting, pitching, and fielding statistics (AVG, OBP, SLG, OPS, wOBA, wRAA, ERA, FIP, WHIP, Game Score, ...). Plain numbers in, plain numbers out.
-2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores).
+1. **Sabermetrics** — pure functions and stat-line dataclasses for batting, pitching, fielding, and team statistics (AVG, OBP, SLG, OPS, wOBA, wRC+, ERA, FIP, xFIP, Pythagorean win expectation, ...). Plain numbers in, plain numbers out.
+2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores), with optional disk caching and typo-tolerant player lookup.
+3. **A terminal command** — `pyhomerun standings`, `pyhomerun scores`, `pyhomerun player "..."` for a quick look without writing any Python.
 
 It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python.
 
@@ -124,6 +125,20 @@ bb.expected_wins(800, 700, games=162)     # 91.2 (Pythagenpat exponent)
 bb.magic_number(leader_wins=90, second_place_losses=60)   # 13
 ```
 
+### From the terminal
+
+Installing the package also installs a `pyhomerun` command:
+
+```bash
+pyhomerun standings
+pyhomerun scores 2025-10-01
+pyhomerun player "Arron Judge"      # fuzzy: finds Aaron Judge despite the typo
+pyhomerun teams
+pyhomerun roster yankees
+```
+
+Responses are cached on disk for 5 minutes so re-running commands is instant and doesn't hammer the API. Same thing works as `python -m pyhomerun ...` if you'd rather not rely on the installed script being on `PATH`.
+
 ## API reference
 
 Every function has a full docstring with its formula and a worked example (`help(bb.woba)`).
@@ -194,8 +209,9 @@ Every function has a full docstring with its formula and a worked example (`help
 
 | Method | Returns |
 |---|---|
-| `MLBClient(timeout=10.0)` | — |
+| `MLBClient(timeout=10.0, cache_ttl=None, cache_dir=None)` | — pass `cache_ttl` (seconds) to cache responses on disk |
 | `.search_players(name)` | Player matches (with MLBAM `id`) |
+| `.find_player(name)` | Best-match player, tolerant of a typo in one name part (see docstring for what it can/can't fix) |
 | `.player(player_id)` | Bio for one player |
 | `.player_stats(id, group, stat_type, season)` | Stat splits (`"hitting"`/`"pitching"`/`"fielding"`; `"season"`/`"career"`/`"yearByYear"`/`"gameLog"`) |
 | `.teams(season)` / `.roster(team_id)` | Teams / active roster |
@@ -222,6 +238,10 @@ python -m unittest discover tests -v
 ```
 
 (The suite also works under `pytest` if you prefer it.) The MLB client tests are fully offline — they never touch the network — and every docstring example runs as a doctest.
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for what's planned — situational stats (RE24), CSV export, a season/playoff-odds simulator, and more, all still zero third-party dependencies. That constraint is the project's core mission, not a starting default.
 
 ## Contributing
 

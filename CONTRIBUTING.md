@@ -4,7 +4,7 @@ Thanks for helping out! This project aims to stay small, correct, and dependency
 
 ## Ground rules
 
-1. **Zero dependencies.** Runtime code uses only the Python standard library, and the test suite runs with stock `unittest`. PRs that add a dependency will be asked to remove it.
+1. **Zero dependencies.** Runtime code uses only the Python standard library, and the test suite runs with stock `unittest`. This is the project's core mission, not a starting default — PRs that add a runtime or test dependency will be asked to remove it, no matter how small. See [ROADMAP.md](ROADMAP.md) for how this shapes what we will and won't build.
 2. **Document every public function.** Docstrings must state the formula and include a doctest example — the examples run in CI via `tests/test_doctests.py`, so they can't go stale.
 3. **Test everything.** New stats need tests covering a typical value and the zero-denominator edge case. MLB client changes must be tested offline (mock `urllib` — see `tests/test_mlb.py`).
 4. **Cite your formulas.** For sabermetric stats, link a reference (FanGraphs glossary, Baseball Reference, etc.) in the PR description.

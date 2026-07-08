@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 (2026-07-07)
+
+Still zero dependencies.
+
+- `pyhomerun` CLI (also `python -m pyhomerun`): `standings`, `scores [date]`, `player <name>`, `teams`, `roster <team>`
+- `MLBClient.find_player(name)`: typo-tolerant player lookup (recovers from a misspelling in one name part, using the API's own search plus `difflib` re-ranking)
+- `MLBClient(cache_ttl=..., cache_dir=...)`: optional on-disk response caching, off by default
+- Added `ROADMAP.md`
+
 ## 0.2.0 (2026-07-07)
 
 Still zero dependencies.
