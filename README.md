@@ -6,11 +6,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
-`pyhomerun` does three things:
+`pyhomerun` does four things:
 
-1. **Sabermetrics** — pure functions and stat-line dataclasses for batting, pitching, fielding, and team statistics (AVG, OBP, SLG, OPS, wOBA, wRC+, ERA, FIP, xFIP, Pythagorean win expectation, ...). Plain numbers in, plain numbers out.
-2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores), with optional disk caching and typo-tolerant player lookup.
-3. **A terminal command** — `pyhomerun standings`, `pyhomerun scores`, `pyhomerun player "..."` for a quick look without writing any Python.
+1. **Sabermetrics** — pure functions and stat-line dataclasses for batting, pitching, fielding, and team statistics (AVG, OBP, SLG, OPS, wOBA, wRC+, ERA, FIP, xFIP, Pythagorean win expectation, ...), plus situational run-expectancy (RE24). Plain numbers in, plain numbers out.
+2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores, play-by-play), with optional disk caching, retry with backoff, and typo-tolerant player lookup.
+3. **CSV export** — `to_csv()` turns a collection of stat lines into a CSV, no third-party spreadsheet library required.
+4. **A terminal command** — `pyhomerun standings`, `pyhomerun scores`, `pyhomerun player "..."`, `pyhomerun export ...` for a quick look without writing any Python.
 
 It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python.
 
@@ -125,6 +126,31 @@ bb.expected_wins(800, 700, games=162)     # 91.2 (Pythagenpat exponent)
 bb.magic_number(leader_wins=90, second_place_losses=60)   # 13
 ```
 
+### Situational stats: run expectancy
+
+```python
+from pyhomerun import BaseOutState, run_expectancy, run_value
+
+# Runner on second, one out: how many runs does a team expect to score?
+run_expectancy(BaseOutState(on_second=True, outs=1))       # 0.644
+
+# A walk with the bases empty and nobody out — its run value:
+before = BaseOutState()
+after = BaseOutState(on_first=True)
+run_value(before, after, runs_scored=0)                    # 0.37
+```
+
+### CSV export
+
+```python
+from pyhomerun import to_csv
+
+roster_lines = {"Aaron Judge": line, "Juan Soto": other_line}  # name -> BattingLine
+to_csv(roster_lines)                        # CSV text
+with open("roster.csv", "w", newline="") as f:
+    to_csv(roster_lines, file=f)
+```
+
 ### From the terminal
 
 Installing the package also installs a `pyhomerun` command:
@@ -135,6 +161,7 @@ pyhomerun scores 2025-10-01
 pyhomerun player "Arron Judge"      # fuzzy: finds Aaron Judge despite the typo
 pyhomerun teams
 pyhomerun roster yankees
+pyhomerun export hitting yankees --out yankees.csv
 ```
 
 Responses are cached on disk for 5 minutes so re-running commands is instant and doesn't hammer the API. Same thing works as `python -m pyhomerun ...` if you'd rather not rely on the installed script being on `PATH`.
@@ -196,6 +223,14 @@ Every function has a full docstring with its formula and a worked example (`help
 | `expected_wins(rs, ra, g)` | Expected win total (Pythagenpat) |
 | `magic_number(leader_wins, second_losses)` | Clinch magic number |
 
+### Situational
+
+| Function | Statistic |
+|---|---|
+| `run_expectancy(BaseOutState(...))` | RE24: expected rest-of-inning runs for a base-out state |
+| `run_value(before, after, runs_scored)` | Run value of a play (change in expectancy + runs scored) |
+| `RE24_TABLE` | The underlying `{BaseOutState: float}` matrix — swap in your own for exact per-season values |
+
 ### Stat lines
 
 | Class | What it does |
@@ -204,12 +239,13 @@ Every function has a full docstring with its formula and a worked example (`help
 | `PitchingLine` | Stores innings as `outs` for exact addition; `era`, `whip`, `k_per_9`, `lob%`, ... as properties, plus `fip()`, `era_plus()`, `era_minus()` |
 | `*.from_mlb(split)` | Build either line directly from an `MLBClient.player_stats()` split |
 | `line + line` | Combine splits/seasons field-by-field |
+| `to_csv(lines, file=None)` | Export a mapping or iterable of lines to CSV (returns text, or writes to `file`) |
 
 ### MLB Stats API client
 
 | Method | Returns |
 |---|---|
-| `MLBClient(timeout=10.0, cache_ttl=None, cache_dir=None)` | — pass `cache_ttl` (seconds) to cache responses on disk |
+| `MLBClient(timeout=10.0, cache_ttl=None, cache_dir=None, retries=0, backoff_factor=0.5)` | — pass `cache_ttl` (seconds) to cache responses on disk, `retries` for transient-failure retry with backoff |
 | `.search_players(name)` | Player matches (with MLBAM `id`) |
 | `.find_player(name)` | Best-match player, tolerant of a typo in one name part (see docstring for what it can/can't fix) |
 | `.player(player_id)` | Bio for one player |
@@ -218,6 +254,10 @@ Every function has a full docstring with its formula and a worked example (`help
 | `.schedule(date, team_id)` | Games for a date (default today) |
 | `.standings(season)` | Division standings |
 | `.boxscore(game_pk)` / `.linescore(game_pk)` | Game details |
+| `.play_by_play(game_pk)` | Every play of a game, in order |
+| `.venues()` | All MLB ballparks |
+| `.awards()` / `.award_recipients(award_id, season)` | Awards / winners of one award |
+| `.draft(year)` | Every pick of the amateur draft for a year |
 | `.get(path, **params)` | Any other endpoint, as parsed JSON |
 
 All methods return plain dicts/lists parsed from the API's JSON — nothing is hidden, and `.get()` is an escape hatch to the API's [many other endpoints](https://statsapi.mlb.com/docs/). Errors raise `pyhomerun.MLBAPIError`.
@@ -241,7 +281,7 @@ python -m unittest discover tests -v
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for what's planned — situational stats (RE24), CSV export, a season/playoff-odds simulator, and more, all still zero third-party dependencies. That constraint is the project's core mission, not a starting default.
+See [ROADMAP.md](ROADMAP.md) for what's planned — a Monte Carlo season/playoff simulator, standings/schedule helpers, a `sqlite3`-backed local cache, and more, all still zero third-party dependencies. That constraint is the project's core mission, not a starting default.
 
 ## Contributing
 
