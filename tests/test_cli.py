@@ -64,7 +64,7 @@ class StubClient:
     def roster(self, team_id, season=None):
         assert team_id == 147
         return [
-            {"jerseyNumber": "99", "person": {"fullName": "Aaron Judge"},
+            {"jerseyNumber": "99", "person": {"id": 592450, "fullName": "Aaron Judge"},
              "position": {"abbreviation": "RF"}},
         ]
 
@@ -113,6 +113,23 @@ class TestCli(unittest.TestCase):
         code, out = run_cli("roster", "147")
         self.assertEqual(code, 0)
         self.assertIn("Aaron Judge", out)
+
+    def test_export_writes_csv_to_stdout(self):
+        code, out = run_cli("export", "hitting", "yankees")
+        self.assertEqual(code, 0)
+        self.assertIn("Aaron Judge", out)
+        self.assertIn("home_runs", out.splitlines()[0])
+
+    def test_export_writes_csv_to_file(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "yankees.csv"
+            code, out = run_cli("export", "hitting", "yankees", "--out", str(out_path))
+            self.assertEqual(code, 0)
+            self.assertEqual(out, "")
+            self.assertIn("Aaron Judge", out_path.read_text())
 
     def test_api_error_returns_nonzero(self):
         class FailingClient(StubClient):

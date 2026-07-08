@@ -37,6 +37,7 @@ from .batting import (
     wrc_plus,
 )
 from .constants import DEFAULT_FIP_CONSTANT, DEFAULT_WOBA_WEIGHTS, WobaWeights
+from .export import to_csv
 from .fielding import (
     caught_stealing_percentage,
     fielding_percentage,
@@ -62,6 +63,8 @@ from .pitching import (
     whip,
     xfip,
 )
+from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
+from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
 from .team import (
     expected_wins,
     magic_number,
@@ -70,7 +73,7 @@ from .team import (
     run_differential,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     # batting
@@ -116,6 +119,7 @@ __all__ = [
     # stat lines
     "BattingLine",
     "PitchingLine",
+    "to_csv",
     # fielding
     "fielding_percentage",
     "range_factor_per_game",
@@ -128,5 +132,10 @@ __all__ = [
     # MLB Stats API
     "MLBClient",
     "MLBAPIError",
+    # situational
+    "BaseOutState",
+    "RE24_TABLE",
+    "run_expectancy",
+    "run_value",
     "__version__",
 ]

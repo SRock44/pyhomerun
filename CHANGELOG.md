@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 (2026-07-08)
+
+Still zero dependencies.
+
+- New `situational` module: the published 24-base-out-state run-expectancy (RE24) matrix as data, plus `run_expectancy()` and `run_value()` for computing the run value of a play
+- `to_csv()`: export `BattingLine`/`PitchingLine` collections to CSV via the stdlib `csv` module; new `pyhomerun export <hitting|pitching> <team>` CLI subcommand
+- `MLBClient(retries=..., backoff_factor=...)`: bounded retry with exponential backoff for transient failures (5xx responses, network errors), off by default
+- New `MLBClient` endpoints: `play_by_play()`, `venues()`, `awards()`, `award_recipients()`, `draft()`
+
 ## 0.3.0 (2026-07-07)
 
 Still zero dependencies.

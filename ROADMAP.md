@@ -10,14 +10,8 @@ If a future feature turns out to genuinely require a third-party package, the an
 
 - **v0.1.0** — Batting/pitching/fielding sabermetrics (AVG through wOBA/FIP), `MLBClient` for the MLB Stats API, fully typed, doctested.
 - **v0.2.0** — `BattingLine`/`PitchingLine` stat-line dataclasses with `from_mlb()` and `+`, wRC/wRC+/Runs Created, ERA+/ERA-/xFIP, team-level Pythagorean win expectation and magic number.
-- **v0.3.0** *(this PR)* — `pyhomerun` CLI (`standings`, `scores`, `player`, `teams`, `roster`), typo-tolerant `find_player()`, optional on-disk response caching (`cache_ttl`).
-
-## v0.4.0 — Situational stats and CSV export
-
-- **Run-expectancy matrix (RE24)**: ship the published 24-base-out-state run-expectancy table as data, plus helpers for run value of an event and base-out state transitions. Enables "how many runs is a runner on 2nd, 1 out worth?" without needing play-by-play modeling.
-- **CSV export**: `to_csv()` on `BattingLine`/`PitchingLine` collections and a `pyhomerun export` CLI subcommand, using the stdlib `csv` module — a zero-dependency escape hatch into Excel/Sheets/pandas for anyone who wants those tools downstream without pyhomerun depending on them.
-- **More MLB client endpoints**: live play-by-play feed, venues, awards, draft — via the existing `.get()` escape hatch first, promoted to dedicated methods as demand shows up.
-- **Retry with backoff**: transient network errors (5xx, timeouts) get a bounded stdlib-only retry in `MLBClient`, configurable and off by default for the CLI's single-shot commands.
+- **v0.3.0** — `pyhomerun` CLI (`standings`, `scores`, `player`, `teams`, `roster`), typo-tolerant `find_player()`, optional on-disk response caching (`cache_ttl`).
+- **v0.4.0** *(this PR)* — `situational` module with the RE24 run-expectancy matrix (`run_expectancy()`, `run_value()`); CSV export (`to_csv()`) and a `pyhomerun export` CLI subcommand; `MLBClient` retry with backoff (`retries`, `backoff_factor`); new `MLBClient` endpoints (`play_by_play`, `venues`, `awards`, `award_recipients`, `draft`).
 
 ## v0.5.0 — Simulation and season tools
 
