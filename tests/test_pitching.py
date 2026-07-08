@@ -57,6 +57,34 @@ class TestFip(unittest.TestCase):
         self.assertEqual(bb.fip(1, 1, 1, 1, 0), 0.0)
 
 
+class TestRelativeEra(unittest.TestCase):
+    def test_era_plus_league_average_is_100(self):
+        self.assertAlmostEqual(bb.era_plus(4.20, 4.20), 100.0, places=6)
+
+    def test_era_plus_better_than_league(self):
+        self.assertAlmostEqual(bb.era_plus(3.00, 4.20), 140.0, places=6)
+
+    def test_era_plus_zero_era_is_infinite(self):
+        self.assertEqual(bb.era_plus(0.0, 4.20), math.inf)
+
+    def test_era_minus_better_than_league_is_below_100(self):
+        self.assertAlmostEqual(bb.era_minus(3.00, 4.20), 100 * 3 / 4.2, places=6)
+
+    def test_era_minus_zero_league(self):
+        self.assertEqual(bb.era_minus(3.00, 0.0), 0.0)
+
+
+class TestXfip(unittest.TestCase):
+    def test_matches_formula(self):
+        value = bb.xfip(fly_balls=200, walks=45, hit_by_pitch=5, strikeouts=190,
+                        innings_pitched=180, league_hr_per_fb=0.105, constant=3.17)
+        expected = (13 * (200 * 0.105) + 3 * 50 - 2 * 190) / 180 + 3.17
+        self.assertAlmostEqual(value, expected, places=6)
+
+    def test_zero_innings(self):
+        self.assertEqual(bb.xfip(1, 1, 1, 1, 0), 0.0)
+
+
 class TestPerNineRates(unittest.TestCase):
     def test_k_per_9(self):
         self.assertAlmostEqual(bb.k_per_9(190, 180), 9.5, places=6)

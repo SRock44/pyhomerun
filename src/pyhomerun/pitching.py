@@ -20,8 +20,11 @@ __all__ = [
     "innings",
     "innings_from_outs",
     "era",
+    "era_plus",
+    "era_minus",
     "whip",
     "fip",
+    "xfip",
     "k_per_9",
     "bb_per_9",
     "hr_per_9",
@@ -79,6 +82,35 @@ def era(earned_runs: int, innings_pitched: float) -> float:
     return _per_inning_rate(earned_runs, innings_pitched, 9)
 
 
+def era_plus(era_: float, league_era: float, park_factor: float = 1.0) -> float:
+    """ERA+ — ERA relative to league, where 100 is average and higher is
+    better (an ERA+ of 150 means 50% better than league average).
+
+    Formula: ``100 * (lgERA * PF) / ERA``
+
+    >>> round(era_plus(3.00, 4.20))
+    140
+    """
+    if not era_:
+        return math.inf if league_era * park_factor else 0.0
+    return 100 * (league_era * park_factor) / era_
+
+
+def era_minus(era_: float, league_era: float, park_factor: float = 1.0) -> float:
+    """ERA- — ERA relative to league, where 100 is average and *lower* is
+    better (an ERA- of 75 means 25% better than league average).
+
+    Formula: ``100 * ERA / (lgERA * PF)``
+
+    >>> round(era_minus(3.00, 4.20), 1)
+    71.4
+    """
+    denominator = league_era * park_factor
+    if not denominator:
+        return 0.0
+    return 100 * era_ / denominator
+
+
 def whip(walks: int, hits: int, innings_pitched: float) -> float:
     """Walks plus hits per inning pitched (WHIP).
 
@@ -117,6 +149,34 @@ def fip(
     if not innings_pitched:
         return 0.0
     core = (13 * home_runs + 3 * (walks + hit_by_pitch) - 2 * strikeouts) / innings_pitched
+    return core + constant
+
+
+def xfip(
+    fly_balls: int,
+    walks: int,
+    hit_by_pitch: int,
+    strikeouts: int,
+    innings_pitched: float,
+    league_hr_per_fb: float = 0.105,
+    constant: float = DEFAULT_FIP_CONSTANT,
+) -> float:
+    """Expected FIP (xFIP): FIP with home runs replaced by an expectation.
+
+    Home-run-per-fly-ball rate is noisy, so xFIP substitutes the league
+    rate (historically 9-13%; pass the exact season value if you have it)
+    applied to the pitcher's fly balls allowed.
+
+    Formula: ``(13*(FB * lgHR/FB) + 3*(BB+HBP) - 2*K) / IP + constant``
+
+    >>> round(xfip(fly_balls=200, walks=45, hit_by_pitch=5, strikeouts=190,
+    ...            innings_pitched=180), 2)
+    3.41
+    """
+    if not innings_pitched:
+        return 0.0
+    expected_hr = fly_balls * league_hr_per_fb
+    core = (13 * expected_hr + 3 * (walks + hit_by_pitch) - 2 * strikeouts) / innings_pitched
     return core + constant
 
 
