@@ -5,7 +5,9 @@ Two things, zero dependencies:
 * **Sabermetrics** — pure functions for batting, pitching, and fielding
   stats (AVG, OBP, SLG, OPS, wOBA, wRAA, ERA, FIP, WHIP, ...).
 * **MLB data** — :class:`MLBClient`, a tiny standard-library client for
-  the free MLB Stats API (players, stats, teams, schedules, standings).
+  the free MLB Stats API (players, stats, teams, schedules, standings),
+  plus :class:`StatcastClient` for Baseball Savant's exit velocity/launch
+  angle/spin rate data.
 
 Quick start::
 
@@ -64,6 +66,7 @@ from .pitching import (
     xfip,
 )
 from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
+from .statcast import StatcastClient, StatcastError
 from .team import (
     expected_wins,
     magic_number,
@@ -136,5 +139,8 @@ __all__ = [
     "RE24_TABLE",
     "run_expectancy",
     "run_value",
+    # Statcast
+    "StatcastClient",
+    "StatcastError",
     "__version__",
 ]
