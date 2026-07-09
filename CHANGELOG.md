@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 (2026-07-09)
+
+Still zero dependencies.
+
+- New `StatcastClient`: exit velocity, launch angle, and spin rate via Baseball Savant's CSV export, with defensive error handling (`StatcastError`) since it's an undocumented endpoint rather than a stable API
+- `MLBClient.teams(sport_id=...)` and new `MLBClient.sports()`: minor-league team/level lookups, plus a `MINOR_LEAGUE_SPORT_IDS` convenience mapping (Triple-A through Rookie)
+- Fixed a duplicate import in `pyhomerun/__init__.py`
+
 ## 0.4.0 (2026-07-08)
 
 Still zero dependencies.

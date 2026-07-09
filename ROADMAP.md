@@ -12,13 +12,7 @@ If a future feature turns out to genuinely require a third-party package, the an
 - **v0.2.0** — `BattingLine`/`PitchingLine` stat-line dataclasses with `from_mlb()` and `+`, wRC/wRC+/Runs Created, ERA+/ERA-/xFIP, team-level Pythagorean win expectation and magic number.
 - **v0.3.0** — `pyhomerun` CLI (`standings`, `scores`, `player`, `teams`, `roster`), typo-tolerant `find_player()`, optional on-disk response caching (`cache_ttl`).
 - **v0.4.0** — `situational` module with the RE24 run-expectancy matrix (`run_expectancy()`, `run_value()`); CSV export (`to_csv()`) and a `pyhomerun export` CLI subcommand; `MLBClient` retry with backoff (`retries`, `backoff_factor`); new `MLBClient` endpoints (`play_by_play`, `venues`, `awards`, `award_recipients`, `draft`).
-
-## v0.5.0 — Statcast and historical data
-
-A growing share of `pyhomerun` users are pulling data for ML/AI work, not just box-score lookups — this release prioritizes the data those pipelines actually need.
-
-- **Statcast data** (exit velocity, launch angle, spin rate) via Baseball Savant's CSV export endpoints — feasible with `urllib` + `csv`, but Savant's download URLs aren't a documented stable API, so this ships with a resilience plan (graceful failure, clear error messages) rather than as a bare `.get()`-style escape hatch.
-- **Historical/minor-league data**: the MLB Stats API's `sportId` parameter already exposes minor league data; a thin set of convenience wrappers (`mlb.teams(sport_id=...)`) makes this discoverable without new endpoints — more seasons and levels means more training data.
+- **v0.5.0** — `StatcastClient` for Baseball Savant's exit velocity/launch angle/spin rate CSV export, with defensive error handling (`StatcastError`) rather than a bare escape hatch; `MLBClient.teams(sport_id=...)` and `MLBClient.sports()` for minor-league team/level lookups, plus `MINOR_LEAGUE_SPORT_IDS`.
 
 ## v0.6.0 — Simulation and season tools
 
