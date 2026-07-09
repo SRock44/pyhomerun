@@ -64,7 +64,6 @@ from .pitching import (
     xfip,
 )
 from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
-from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
 from .team import (
     expected_wins,
     magic_number,
