@@ -38,6 +38,18 @@ _USER_AGENT = "pyhomerun (https://github.com/SRock44/pyhomerun)"
 #: sportId for Major League Baseball (the API also serves minor leagues).
 MLB_SPORT_ID = 1
 
+#: Commonly used sportId values for full-season minor-league affiliates
+#: (from ``GET /sports``). Affiliations and levels shift over time, so
+#: treat this as a starting point and confirm current ids with
+#: :meth:`MLBClient.sports`.
+MINOR_LEAGUE_SPORT_IDS = {
+    "Triple-A": 11,
+    "Double-A": 12,
+    "High-A": 13,
+    "Single-A": 14,
+    "Rookie": 16,
+}
+
 JSONDict = Dict[str, Any]
 
 
@@ -237,9 +249,26 @@ class MLBClient:
 
     # -- teams ---------------------------------------------------------------
 
-    def teams(self, season: Optional[int] = None) -> List[JSONDict]:
-        """All MLB teams (optionally for a specific season)."""
-        return self.get("/teams", sportId=MLB_SPORT_ID, season=season).get("teams", [])
+    def teams(
+        self, season: Optional[int] = None, sport_id: int = MLB_SPORT_ID
+    ) -> List[JSONDict]:
+        """Teams for a sport/level (default MLB).
+
+        Args:
+            season: Restrict to a specific season.
+            sport_id: MLB by default; pass a minor-league id (see
+                :meth:`sports` or ``MINOR_LEAGUE_SPORT_IDS``) for
+                Triple-A, Double-A, and other affiliate levels.
+        """
+        return self.get("/teams", sportId=sport_id, season=season).get("teams", [])
+
+    def sports(self) -> List[JSONDict]:
+        """Every sport/level the API knows: MLB plus minor-league affiliates.
+
+        Each dict has ``id`` (pass as ``sport_id`` to :meth:`teams`) and
+        ``name`` (e.g. ``"Triple-A"``, ``"Rookie Advanced"``).
+        """
+        return self.get("/sports").get("sports", [])
 
     def roster(self, team_id: int, season: Optional[int] = None) -> List[JSONDict]:
         """Active roster for a team. Each entry has ``person`` and ``position``."""

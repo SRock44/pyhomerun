@@ -158,6 +158,21 @@ class TestEndpoints(unittest.TestCase):
         client = self._client_returning({"teams": [{"id": 147, "name": "New York Yankees"}]})
         self.assertEqual(client.teams()[0]["id"], 147)
 
+    def test_teams_defaults_to_mlb_sport_id(self):
+        client = self._client_returning({"teams": []})
+        client.teams()
+        self.assertIn("sportId=1", self.urlopen.call_args[0][0].full_url)
+
+    def test_teams_accepts_minor_league_sport_id(self):
+        client = self._client_returning({"teams": [{"id": 431, "name": "Scranton/WB RailRiders"}]})
+        teams = client.teams(sport_id=11)
+        self.assertIn("sportId=11", self.urlopen.call_args[0][0].full_url)
+        self.assertEqual(teams[0]["id"], 431)
+
+    def test_sports_unwraps(self):
+        client = self._client_returning({"sports": [{"id": 11, "name": "Triple-A"}]})
+        self.assertEqual(client.sports()[0]["name"], "Triple-A")
+
     def test_play_by_play_unwraps_all_plays(self):
         client = self._client_returning({"allPlays": [{"result": {"event": "Single"}}]})
         plays = client.play_by_play(717465)
