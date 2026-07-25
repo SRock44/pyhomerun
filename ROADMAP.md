@@ -13,8 +13,9 @@ If a future feature turns out to genuinely require a third-party package, the an
 - **v0.3.0** — `pyhomerun` CLI (`standings`, `scores`, `player`, `teams`, `roster`), typo-tolerant `find_player()`, optional on-disk response caching (`cache_ttl`).
 - **v0.4.0** — `situational` module with the RE24 run-expectancy matrix (`run_expectancy()`, `run_value()`); CSV export (`to_csv()`) and a `pyhomerun export` CLI subcommand; `MLBClient` retry with backoff (`retries`, `backoff_factor`); new `MLBClient` endpoints (`play_by_play`, `venues`, `awards`, `award_recipients`, `draft`).
 - **v0.5.0** — `StatcastClient` for Baseball Savant's exit velocity/launch angle/spin rate CSV export, with defensive error handling (`StatcastError`) rather than a bare escape hatch; `MLBClient.teams(sport_id=...)` and `MLBClient.sports()` for minor-league team/level lookups, plus `MINOR_LEAGUE_SPORT_IDS`.
+- **v0.6.0** — ML-friendly bulk export, pulled forward from the original v1.0.0 plan: `to_records()`/`to_dict(records=...)` return plain `list`/`dict` shapes (no pyhomerun objects) that `pandas.DataFrame(...)` accepts directly; `to_numpy()`/`to_dataframe()` build on those with a lazy, function-body-only `import numpy`/`import pandas` — pyhomerun still installs nothing else, and both work on Statcast rows as well as `BattingLine`/`PitchingLine` collections. `numpy`/`pandas` are available as opt-in extras (`pip install pyhomerun[numpy]`, `pyhomerun[pandas]`) purely for convenience.
 
-## v0.6.0 — Simulation and season tools
+## v0.7.0 — Simulation and season tools
 
 - **Monte Carlo season/playoff simulator**: `random`-only simulator that takes team strength (from Pythagorean record or user input) and a remaining schedule, and estimates playoff odds via repeated simulation. No dependency needed — `random.random()` and a loop is the whole engine.
 - **Standings/schedule helpers**: games-back computation, division/wild-card race summaries, "magic number for every team in a division" in one call.
@@ -23,7 +24,6 @@ If a future feature turns out to genuinely require a third-party package, the an
 
 The 1.0 release is where `pyhomerun` commits to being a serious base for ML/AI baseball work, not just a stats calculator. Big features, plus closing whatever gaps in stat/endpoint coverage remain from the 0.x releases before the public API locks in.
 
-- **ML-friendly export**: `to_numpy()` / `to_dict(records=...)`-style bulk export for stat lines and Statcast data, shaped to drop straight into pandas/numpy/sklearn/pytorch pipelines — without `pyhomerun` itself depending on any of them. Same escape-hatch philosophy as `to_csv()`, one level up.
 - **Full Statcast + play-by-play**: promote Statcast from v0.5.0's resilience-first integration to a first-class, fully-typed, fully-tested feature, paired with a stable play-by-play parser — the raw material for pitch-level and event-level models.
 - **Gap-filling pass**: audit every stat, endpoint, and CLI command shipped since v0.1.0 for missing edge cases, inconsistent conventions, or thin test coverage, and fix them here — 1.0 is the version where the public API stops changing shape.
 

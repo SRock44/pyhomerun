@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 (2026-07-25)
+
+Still zero dependencies.
+
+- New `pyhomerun.to_records()` / `to_dict(records=...)`: flatten `BattingLine`/`PitchingLine` collections (or already record-shaped data, like `StatcastClient.search()` output) into plain `list`/`dict` — no pyhomerun objects in the output. `to_dict()`'s default columnar shape is exactly what `pandas.DataFrame(...)` accepts.
+- New `pyhomerun.to_numpy()` / `to_dataframe()`: convenience wrappers that build on the above with a lazy `import numpy` / `import pandas` inside the function body — pyhomerun itself never imports either and still installs nothing else. Raise a clear `ImportError` with an install hint if the optional package isn't there.
+- `numpy` and `pandas` are now available as opt-in extras (`pip install pyhomerun[numpy]`, `pyhomerun[pandas]`) for convenience; installing plain `pyhomerun` still pulls in nothing beyond the standard library.
+- `to_csv()` is now implemented on top of `to_records()` internally; its behavior and output are unchanged.
+
 ## 0.5.0 (2026-07-09)
 
 Still zero dependencies.
