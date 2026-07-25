@@ -6,14 +6,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
-`pyhomerun` does four things:
+`pyhomerun` does five things:
 
 1. **Sabermetrics** — pure functions and stat-line dataclasses for batting, pitching, fielding, and team statistics (AVG, OBP, SLG, OPS, wOBA, wRC+, ERA, FIP, xFIP, Pythagorean win expectation, ...), plus situational run-expectancy (RE24). Plain numbers in, plain numbers out.
 2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores, play-by-play), with optional disk caching, retry with backoff, and typo-tolerant player lookup.
-3. **CSV export** — `to_csv()` turns a collection of stat lines into a CSV, no third-party spreadsheet library required.
+3. **CSV/dict/array export** — `to_csv()`, `to_records()`/`to_dict()`, and `to_numpy()`/`to_dataframe()` turn a collection of stat lines (or Statcast rows) into CSV, plain Python data, or a numpy array/pandas DataFrame — no third-party library required unless you reach for the last two.
 4. **A terminal command** — `pyhomerun standings`, `pyhomerun scores`, `pyhomerun player "..."`, `pyhomerun export ...` for a quick look without writing any Python.
 
-It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python.
+It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python. `to_numpy()`/`to_dataframe()` are the one exception, and even those only `import numpy`/`import pandas` lazily, inside the function body, when you actually call them.
 
 ## Installation
 
@@ -31,7 +31,12 @@ cd pyhomerun
 pip install .
 ```
 
-Requires Python 3.9+.
+Requires Python 3.9+. If you want `to_numpy()`/`to_dataframe()`, install the matching extra (or already have numpy/pandas around — pyhomerun doesn't care how they got there):
+
+```bash
+pip install pyhomerun[numpy]
+pip install pyhomerun[pandas]
+```
 
 ## Quick start
 
@@ -151,6 +156,37 @@ with open("roster.csv", "w", newline="") as f:
     to_csv(roster_lines, file=f)
 ```
 
+### Bulk export: dicts, numpy, pandas
+
+`to_records()`/`to_dict()` flatten stat lines (or already record-shaped data, like `StatcastClient.search()` output) into plain Python — no pyhomerun objects left in the result:
+
+```python
+from pyhomerun import BattingLine, to_records, to_dict
+
+roster_lines = {"Aaron Judge": line, "Juan Soto": other_line}  # name -> BattingLine
+
+to_records(roster_lines)                  # [{'name': 'Aaron Judge', 'at_bats': 550, ..., 'avg': 0.327}, ...]
+to_dict(roster_lines)                     # {'name': [...], 'at_bats': [...], ..., 'avg': [...]} - columnar
+to_dict(roster_lines, records=True)       # same shape as to_records()
+```
+
+`to_dict()`'s columnar shape is exactly what `pandas.DataFrame(...)` accepts, so `to_numpy()`/`to_dataframe()` are thin convenience wrappers around it — they `import numpy`/`import pandas` lazily, only inside the function body when called, so pyhomerun itself never depends on either:
+
+```python
+from pyhomerun import to_numpy, to_dataframe
+
+arr = to_numpy(roster_lines)              # numpy structured array; arr["home_runs"]
+df = to_dataframe(roster_lines)           # pandas DataFrame, one row per line
+
+# Works on Statcast rows too - no BattingLine/PitchingLine required
+from pyhomerun import StatcastClient
+savant = StatcastClient()
+pitches = savant.search("2024-06-01", "2024-06-30", player_id=660271)
+to_dataframe(pitches)                     # one row per pitch
+```
+
+Calling `to_numpy()`/`to_dataframe()` without numpy/pandas installed raises a plain `ImportError` telling you which package to `pip install`.
+
 ### From the terminal
 
 Installing the package also installs a `pyhomerun` command:
@@ -240,6 +276,10 @@ Every function has a full docstring with its formula and a worked example (`help
 | `*.from_mlb(split)` | Build either line directly from an `MLBClient.player_stats()` split |
 | `line + line` | Combine splits/seasons field-by-field |
 | `to_csv(lines, file=None)` | Export a mapping or iterable of lines to CSV (returns text, or writes to `file`) |
+| `to_records(lines)` | Flatten lines (or dict-like rows, e.g. Statcast) into a `list` of plain `dict` |
+| `to_dict(lines, records=False)` | Columnar `{column: [values]}` by default (ready for `pandas.DataFrame(...)`), or `records=True` for the `to_records()` shape |
+| `to_numpy(lines, dtype=None)` | Numpy structured array — requires numpy (`pip install pyhomerun[numpy]`), imported lazily |
+| `to_dataframe(lines)` | Pandas `DataFrame` — requires pandas (`pip install pyhomerun[pandas]`), imported lazily |
 
 ### MLB Stats API client
 
@@ -281,7 +321,7 @@ python -m unittest discover tests -v
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for what's planned — Statcast and historical/minor-league data next, a season/playoff simulator after that, and a planned 1.0.0 with ML-friendly bulk export and a stable public API. All still zero third-party dependencies. That constraint is the project's core mission, not a starting default.
+See [ROADMAP.md](ROADMAP.md) for what's planned — a Monte Carlo season/playoff simulator next, then a 1.0.0 that promotes Statcast/play-by-play to first-class and closes out remaining coverage gaps before the public API locks in. All still zero required third-party dependencies (`to_numpy()`/`to_dataframe()` are opt-in extras, never a hard install). That constraint is the project's core mission, not a starting default.
 
 ## Contributing
 

@@ -39,7 +39,7 @@ from .batting import (
     wrc_plus,
 )
 from .constants import DEFAULT_FIP_CONSTANT, DEFAULT_WOBA_WEIGHTS, WobaWeights
-from .export import to_csv
+from .export import to_csv, to_dataframe, to_dict, to_numpy, to_records
 from .fielding import (
     caught_stealing_percentage,
     fielding_percentage,
@@ -75,7 +75,7 @@ from .team import (
     run_differential,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     # batting
@@ -122,6 +122,10 @@ __all__ = [
     "BattingLine",
     "PitchingLine",
     "to_csv",
+    "to_records",
+    "to_dict",
+    "to_numpy",
+    "to_dataframe",
     # fielding
     "fielding_percentage",
     "range_factor_per_game",
