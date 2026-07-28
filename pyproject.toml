@@ -41,6 +41,7 @@ pyhomerun = "pyhomerun.cli:main"
 [project.urls]
 Homepage = "https://github.com/SRock44/pyhomerun"
 Documentation = "https://github.com/SRock44/pyhomerun#readme"
+Changelog = "https://github.com/SRock44/pyhomerun/blob/master/CHANGELOG.md"
 Issues = "https://github.com/SRock44/pyhomerun/issues"
 
 [tool.setuptools.packages.find]
