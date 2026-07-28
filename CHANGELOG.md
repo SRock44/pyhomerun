@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0 (2026-07-28)
+
+Still zero dependencies. This release is entirely about performance and memory footprint — every number below is measured in `benchmarks/bench.py`, run it yourself with `python benchmarks/bench.py`.
+
+- `BattingLine`/`PitchingLine` now use `dataclass(slots=True)` on Python 3.10+: no per-instance `__dict__`, meaningfully less memory per line and faster attribute access — matters when a dataset is thousands of lines built for ML feature extraction. A no-op fallback on 3.9, which keeps the old `__dict__`-based behavior.
+- New `MLBClient.player_stats_bulk(player_ids, ...)`: fetches `player_stats()` for many players concurrently on a small thread pool (`concurrent.futures`, standard library). MLB Stats API calls are I/O-bound, not CPU-bound, so this is a ~7x wall-clock win pulling stats for a roster or league instead of looping one call at a time.
+- `StatcastClient` CSV parsing is ~2.3x faster on typical pulls: column dtype (numeric vs. string) is now decided once per column from its first non-empty value instead of `try: float(v)`-ing every single cell, which used to raise and catch a `ValueError` for every string cell (`pitch_type`, `player_name`, `des`, ...). A per-cell fallback is kept as a safety net for a stray non-numeric value in an otherwise-numeric column. This also makes Statcast output columns consistently typed, matching the assumption `to_numpy()`/`to_dataframe()` already make.
+- We also benchmarked an `operator.attrgetter()`-batched rewrite of `to_records()` and measured it ~10% *slower* than the existing per-field `getattr()` loop (attribute access on a slotted dataclass is already about as fast as pure Python gets) — reverted rather than shipped, and documented in `benchmarks/bench.py` so the reasoning isn't lost.
+
+Measured on this machine (Python 3.13.3, see `benchmarks/bench.py` for the exact workload):
+
+| Benchmark | Before | After | Result |
+|---|---|---|---|
+| `MLBClient.player_stats_bulk()`, 30 players, ~50ms latency each | 1.52s sequential | 0.21s (8 workers) | **7.35x faster** |
+| `StatcastClient` CSV parsing, 20,000 pitch rows | 0.056s (357k rows/sec) | 0.024s (821k rows/sec) | **2.30x faster** |
+| `BattingLine` memory, 50,000 instances | 193 bytes/line | 145 bytes/line | **1.33x less memory** |
+| `to_records()`/`to_dict()` bulk export | ~500k lines/sec | unchanged | attrgetter rewrite tried, measured 10% slower, reverted |
+
 ## 0.6.0 (2026-07-25)
 
 Still zero dependencies.

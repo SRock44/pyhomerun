@@ -19,6 +19,7 @@ MLB copyright notice: http://gdx.mlb.com/components/copyright.txt
 
 from __future__ import annotations
 
+import concurrent.futures
 import difflib
 import hashlib
 import json
@@ -246,6 +247,60 @@ class MLBClient:
         for stat_block in data.get("stats", []):
             splits.extend(stat_block.get("splits", []))
         return splits
+
+    def player_stats_bulk(
+        self,
+        player_ids: Iterable[int],
+        group: str = "hitting",
+        stat_type: str = "season",
+        season: Optional[int] = None,
+        max_workers: int = 8,
+    ) -> Dict[int, List[JSONDict]]:
+        """Fetch :meth:`player_stats` for many players concurrently.
+
+        The MLB Stats API only ever gives you one player per request, so
+        building a dataset for a whole roster or league means dozens or
+        hundreds of round trips. Each is network-latency-bound, not
+        CPU-bound, so issuing them concurrently on a small thread pool
+        (the GIL is released during I/O) turns that into a wall-clock win
+        of roughly ``max_workers``-fold with no extra dependency --
+        :mod:`concurrent.futures` is standard library.
+
+        Args:
+            player_ids: MLBAM player ids (see :meth:`search_players`).
+            group: ``"hitting"``, ``"pitching"``, or ``"fielding"``.
+            stat_type: ``"season"``, ``"career"``, ``"yearByYear"``, etc.
+            season: Year, for season-scoped stat types.
+            max_workers: Size of the thread pool. Higher isn't always
+                faster -- MLB's API will start rate-limiting a very large
+                burst, so 8-16 is a reasonable ceiling for a few hundred
+                players.
+
+        Returns:
+            ``{player_id: splits}``, the same ``splits`` list
+            :meth:`player_stats` returns for that player. If a request
+            fails, the exception propagates once every in-flight request
+            has finished (as :class:`MLBAPIError`), same as a single
+            :meth:`player_stats` call would raise.
+
+        Note:
+            If ``cache_ttl`` is set, concurrent first-time writes to the
+            same brand-new cache file are harmlessly redundant (last
+            writer wins) rather than corrupting anything -- each response
+            is written atomically as a whole file.
+        """
+        ids = list(player_ids)
+        if not ids:
+            return {}
+        results: Dict[int, List[JSONDict]] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = {
+                pool.submit(self.player_stats, player_id, group, stat_type, season): player_id
+                for player_id in ids
+            }
+            for future in concurrent.futures.as_completed(futures):
+                results[futures[future]] = future.result()
+        return results
 
     # -- teams ---------------------------------------------------------------
 
