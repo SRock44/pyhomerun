@@ -1,3 +1,4 @@
+import sys
 import unittest
 
 import pyhomerun as bb
@@ -129,6 +130,22 @@ class TestPitchingLine(unittest.TestCase):
         combined = self.line + self.line
         self.assertEqual(combined.outs, 1080)
         self.assertAlmostEqual(combined.era, self.line.era, places=9)
+
+
+@unittest.skipUnless(sys.version_info >= (3, 10), "dataclass(slots=True) requires Python 3.10+")
+class TestSlots(unittest.TestCase):
+    def test_lines_have_no_instance_dict(self):
+        self.assertFalse(hasattr(BattingLine(), "__dict__"))
+        self.assertFalse(hasattr(PitchingLine(), "__dict__"))
+
+    def test_unknown_attribute_raises(self):
+        line = BattingLine()
+        with self.assertRaises(AttributeError):
+            line.not_a_real_field = 1
+
+    def test_addition_still_works_with_slots(self):
+        line = BattingLine(hits=10) + BattingLine(hits=5)
+        self.assertEqual(line.hits, 15)
 
 
 if __name__ == "__main__":

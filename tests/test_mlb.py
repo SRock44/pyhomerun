@@ -240,6 +240,44 @@ class TestFindPlayer(unittest.TestCase):
             client.find_player("Nobody Realman")
 
 
+class _StatsStubClient(MLBClient):
+    """MLBClient with player_stats replaced by canned per-id responses."""
+
+    def __init__(self, responses, fail_ids=()):
+        super().__init__()
+        self.responses = responses
+        self.fail_ids = set(fail_ids)
+        self.calls = []
+
+    def player_stats(self, player_id, group="hitting", stat_type="season", season=None):
+        self.calls.append(player_id)
+        if player_id in self.fail_ids:
+            raise MLBAPIError(f"boom for {player_id}")
+        return self.responses.get(player_id, [])
+
+
+class TestPlayerStatsBulk(unittest.TestCase):
+    def test_fetches_every_player_concurrently(self):
+        client = _StatsStubClient({
+            592450: [{"stat": {"homeRuns": 58}}],
+            660271: [{"stat": {"homeRuns": 55}}],
+        })
+        results = client.player_stats_bulk([592450, 660271], group="hitting", season=2025)
+        self.assertEqual(results[592450][0]["stat"]["homeRuns"], 58)
+        self.assertEqual(results[660271][0]["stat"]["homeRuns"], 55)
+        self.assertEqual(sorted(client.calls), [592450, 660271])
+
+    def test_empty_input_returns_empty_dict_without_calls(self):
+        client = _StatsStubClient({})
+        self.assertEqual(client.player_stats_bulk([]), {})
+        self.assertEqual(client.calls, [])
+
+    def test_a_failure_propagates_as_mlbapierror(self):
+        client = _StatsStubClient({592450: []}, fail_ids={660271})
+        with self.assertRaises(MLBAPIError):
+            client.player_stats_bulk([592450, 660271])
+
+
 class TestCaching(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

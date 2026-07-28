@@ -9,11 +9,11 @@
 `pyhomerun` does five things:
 
 1. **Sabermetrics** — pure functions and stat-line dataclasses for batting, pitching, fielding, and team statistics (AVG, OBP, SLG, OPS, wOBA, wRC+, ERA, FIP, xFIP, Pythagorean win expectation, ...), plus situational run-expectancy (RE24). Plain numbers in, plain numbers out.
-2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores, play-by-play), with optional disk caching, retry with backoff, and typo-tolerant player lookup.
+2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores, play-by-play), with optional disk caching, retry with backoff, typo-tolerant player lookup, and concurrent bulk fetching for many players at once.
 3. **CSV/dict/array export** — `to_csv()`, `to_records()`/`to_dict()`, and `to_numpy()`/`to_dataframe()` turn a collection of stat lines (or Statcast rows) into CSV, plain Python data, or a numpy array/pandas DataFrame — no third-party library required unless you reach for the last two.
 4. **A terminal command** — `pyhomerun standings`, `pyhomerun scores`, `pyhomerun player "..."`, `pyhomerun export ...` for a quick look without writing any Python.
 
-It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python. `to_numpy()`/`to_dataframe()` are the one exception, and even those only `import numpy`/`import pandas` lazily, inside the function body, when you actually call them.
+It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python. `to_numpy()`/`to_dataframe()` are the one exception, and even those only `import numpy`/`import pandas` lazily, inside the function body, when you actually call them. As of v0.7.0 it's also been tuned for speed and memory where it actually matters for ML/AI workflows — see [Performance](#performance).
 
 ## Installation
 
@@ -290,6 +290,7 @@ Every function has a full docstring with its formula and a worked example (`help
 | `.find_player(name)` | Best-match player, tolerant of a typo in one name part (see docstring for what it can/can't fix) |
 | `.player(player_id)` | Bio for one player |
 | `.player_stats(id, group, stat_type, season)` | Stat splits (`"hitting"`/`"pitching"`/`"fielding"`; `"season"`/`"career"`/`"yearByYear"`/`"gameLog"`) |
+| `.player_stats_bulk(player_ids, group, stat_type, season, max_workers=8)` | `{player_id: splits}` for many players at once, fetched concurrently — see [Performance](#performance) |
 | `.teams(season)` / `.roster(team_id)` | Teams / active roster |
 | `.schedule(date, team_id)` | Games for a date (default today) |
 | `.standings(season)` | Division standings |
@@ -309,6 +310,29 @@ All methods return plain dicts/lists parsed from the API's JSON — nothing is h
 - **League constants**: `woba` and `fip` ship with representative modern-era defaults. For season-exact work, pass your own `WobaWeights` / FIP constant using values from the free [FanGraphs Guts!](https://www.fangraphs.com/guts.aspx) page.
 - **Typed**: the package ships a `py.typed` marker; all functions are annotated.
 
+## Performance
+
+`pyhomerun` targets ML/AI-scale baseball workflows — building feature sets from thousands of player-seasons, or pulling a season of Statcast pitches — and v0.7.0 is a dedicated performance pass for exactly that. Every number below comes from [`benchmarks/bench.py`](benchmarks/bench.py); run it yourself:
+
+```bash
+python benchmarks/bench.py
+```
+
+- **Lower memory per stat line.** On Python 3.10+, `BattingLine`/`PitchingLine` use `dataclass(slots=True)` — no per-instance `__dict__` — so building a dataset of thousands of lines for feature extraction costs less memory. (3.9 falls back to the old `__dict__`-based behavior automatically; nothing to configure.)
+- **~7x faster bulk player-stat fetches.** `MLBClient.player_stats_bulk(player_ids, ...)` fetches many players' stats concurrently on a small thread pool (`concurrent.futures`, standard library — no new dependency). MLB Stats API calls are network-latency-bound, not CPU-bound, so overlapping them is the single biggest real-world speedup available for building a training set across a roster or league:
+
+  ```python
+  mlb = bb.MLBClient()
+  ids = [p["id"] for p in mlb.roster(147)]  # every Yankee, e.g.
+  stats = mlb.player_stats_bulk(ids, group="hitting", season=2025, max_workers=8)
+  # {player_id: [splits...]}
+  ```
+
+- **~2.3x faster Statcast CSV parsing.** `StatcastClient` now infers each column's dtype once (numeric vs. string) from its first non-empty value, instead of `try: float(v)`-ing every cell — a real cost when most of a Statcast pull's ~90 columns are categorical (`pitch_type`, `player_name`, `des`, ...) and only a handful are numeric.
+- **Honest about what didn't help.** We also benchmarked an `operator.attrgetter()`-batched rewrite of `to_records()`/`to_dict()` and measured it ~10% *slower* than the existing per-field loop — attribute access on a `__slots__` dataclass is already about as fast as pure Python gets, so batching it added overhead instead of removing it. That rewrite was reverted rather than shipped; see the comment in `benchmarks/bench.py` for the numbers. `to_records()` already runs at roughly half a million lines/sec on a typical machine.
+
+All of this is still **zero third-party dependencies** — the "lightest" half of the claim was already true (no `pandas`/`numpy`/`requests` pulled in just to import `pyhomerun`), and this release is what makes "fastest" backed by actual measurements rather than assertion.
+
 ## Running the tests
 
 No test framework needed:
@@ -321,7 +345,7 @@ python -m unittest discover tests -v
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for what's planned — a Monte Carlo season/playoff simulator next, then a 1.0.0 that promotes Statcast/play-by-play to first-class and closes out remaining coverage gaps before the public API locks in. All still zero required third-party dependencies (`to_numpy()`/`to_dataframe()` are opt-in extras, never a hard install). That constraint is the project's core mission, not a starting default.
+See [ROADMAP.md](ROADMAP.md) for what's planned — a Monte Carlo season/playoff simulator next, then a 1.0.0 that promotes Statcast/play-by-play to first-class and closes out remaining coverage gaps before the public API locks in. All still zero required third-party dependencies (`to_numpy()`/`to_dataframe()` are opt-in extras, never a hard install). That constraint is the project's core mission, not a starting default — see [Performance](#performance) for how v0.7.0 made it faster without loosening it.
 
 ## Contributing
 

@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -79,6 +80,17 @@ _DEFAULT_PARAMS: Dict[str, str] = {
     "min_pas": "0",
     "type": "details",
 }
+
+
+#: Matches a bare numeric literal (Savant never quotes numbers, so this is
+#: conservative on purpose: no thousands separators, no leading/trailing
+#: whitespace). Used to decide a column's dtype from a single sample value
+#: instead of try/except-ing ``float()`` on every cell of every row --
+#: Statcast pulls routinely run tens of thousands of rows by ~90 columns,
+#: most of them categorical (``pitch_type``, ``des``, ``player_name``, ...),
+#: and raising+catching a ``ValueError`` per string cell is the dominant
+#: cost of parsing a large pull.
+_NUMERIC_RE = re.compile(r"[+-]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?\Z")
 
 
 class StatcastError(Exception):
@@ -192,20 +204,48 @@ class StatcastClient:
                 "persists."
             )
         try:
-            rows = list(csv.DictReader(io.StringIO(stripped)))
-        except csv.Error as exc:
+            reader = csv.reader(io.StringIO(stripped))
+            header = next(reader)
+            rows = list(reader)
+        except (csv.Error, StopIteration) as exc:
             raise StatcastError(f"could not parse Statcast CSV: {exc}") from exc
-        return [self._coerce(row) for row in rows]
+        return self._coerce_rows(header, rows)
 
     @staticmethod
-    def _coerce(row: Dict[str, Optional[str]]) -> Dict[str, Any]:
-        coerced: Dict[str, Any] = {}
-        for key, value in row.items():
-            if not value:
-                coerced[key] = None
-                continue
-            try:
-                coerced[key] = float(value)
-            except ValueError:
-                coerced[key] = value
-        return coerced
+    def _coerce_rows(header: List[str], rows: List[List[str]]) -> List[Dict[str, Any]]:
+        """Turn raw CSV rows into typed dicts, one numeric decision per column.
+
+        Every column in a Statcast pull is consistently one thing or the
+        other -- ``launch_speed`` is always a number, ``pitch_type`` is
+        always a code -- so the dtype is decided once per column from its
+        first non-empty value, then applied straight down that column.
+        This matches the column-homogeneous assumption
+        :func:`pyhomerun.to_numpy`/:func:`pyhomerun.to_dataframe` already
+        make, and is far faster than the old per-cell ``try: float(v)``
+        (which raised and caught a ``ValueError`` for every string cell).
+        A per-cell ``try/except`` is kept as a safety net in case a
+        numeric-looking column has a stray non-numeric value.
+        """
+        numeric = [False] * len(header)
+        for col, _ in enumerate(header):
+            for row in rows:
+                if col < len(row) and row[col]:
+                    numeric[col] = _NUMERIC_RE.match(row[col]) is not None
+                    break
+
+        records: List[Dict[str, Any]] = []
+        for row in rows:
+            record: Dict[str, Any] = {}
+            for col, name in enumerate(header):
+                value = row[col] if col < len(row) else ""
+                if not value:
+                    record[name] = None
+                elif numeric[col]:
+                    try:
+                        record[name] = float(value)
+                    except ValueError:
+                        record[name] = value
+                else:
+                    record[name] = value
+            records.append(record)
+        return records

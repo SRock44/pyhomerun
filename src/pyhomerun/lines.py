@@ -19,6 +19,7 @@ career from year-by-year, ...).
 from __future__ import annotations
 
 import dataclasses
+import sys
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -27,6 +28,13 @@ from . import pitching as _pitching
 from .constants import DEFAULT_FIP_CONSTANT, DEFAULT_WOBA_WEIGHTS, WobaWeights
 
 __all__ = ["BattingLine", "PitchingLine"]
+
+#: ``dataclass(slots=True)`` (Python 3.10+) drops the per-instance ``__dict__``,
+#: measurably cutting memory per line and speeding up attribute access (see
+#: benchmarks/bench.py) — exactly what matters when building datasets of
+#: thousands of lines for ML feature extraction. On 3.9 this is a no-op and
+#: lines keep a ``__dict__``.
+_SLOTS_KWARGS = {"slots": True} if sys.version_info >= (3, 10) else {}
 
 
 def _stat_dict(split: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -45,6 +53,8 @@ def _count(stat: Mapping[str, Any], key: str, fallback_key: str = "") -> int:
 class _Addable:
     """Mixin: add two lines field-by-field to combine splits or seasons."""
 
+    __slots__ = ()
+
     def __add__(self, other: Any) -> Any:
         if type(other) is not type(self):
             return NotImplemented
@@ -55,7 +65,7 @@ class _Addable:
         return type(self)(**merged)
 
 
-@dataclass
+@dataclass(**_SLOTS_KWARGS)
 class BattingLine(_Addable):
     """A batter's counting stats, with every derived stat one call away.
 
@@ -200,7 +210,7 @@ class BattingLine(_Addable):
         return f"{self.avg:.3f}/{self.obp:.3f}/{self.slg:.3f}"
 
 
-@dataclass
+@dataclass(**_SLOTS_KWARGS)
 class PitchingLine(_Addable):
     """A pitcher's counting stats, with every derived stat one call away.
 

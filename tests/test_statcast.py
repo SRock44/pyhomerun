@@ -123,6 +123,30 @@ class TestSearch(unittest.TestCase):
         url = urlopen.call_args[0][0].full_url
         self.assertNotIn("min_pitches=", url)
 
+    def test_column_dtype_is_decided_once_from_first_sample(self):
+        # release_speed's first row is numeric, so the whole column is
+        # treated as numeric even though a later row has a stray non-numeric
+        # value -- the per-cell try/except safety net keeps that cell as a
+        # string instead of raising.
+        body = (
+            b"release_speed,pitch_type\n"
+            b"95.1,FF\n"
+            b"not-a-number,SL\n"
+        )
+        client = StatcastClient()
+        with mock.patch("urllib.request.urlopen", return_value=_fake_response(body)):
+            rows = client.search("2024-06-01", "2024-06-30")
+        self.assertEqual(rows[0]["release_speed"], 95.1)
+        self.assertEqual(rows[1]["release_speed"], "not-a-number")
+        self.assertEqual(rows[0]["pitch_type"], "FF")
+
+    def test_ragged_row_missing_trailing_columns_becomes_none(self):
+        body = b"pitch_type,launch_speed\nFF,101.4\nSL\n"
+        client = StatcastClient()
+        with mock.patch("urllib.request.urlopen", return_value=_fake_response(body)):
+            rows = client.search("2024-06-01", "2024-06-30")
+        self.assertIsNone(rows[1]["launch_speed"])
+
     def test_custom_base_url(self):
         client = StatcastClient(base_url="http://localhost:9000/csv")
         with mock.patch(
