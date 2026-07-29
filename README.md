@@ -8,12 +8,13 @@
 
 `pyhomerun` does five things:
 
-1. **Sabermetrics** — pure functions and stat-line dataclasses for batting, pitching, fielding, and team statistics (AVG, OBP, SLG, OPS, wOBA, wRC+, ERA, FIP, xFIP, Pythagorean win expectation, ...), plus situational run-expectancy (RE24). Plain numbers in, plain numbers out.
+1. **Sabermetrics** — pure functions and stat-line dataclasses for batting, pitching, fielding, and team statistics (AVG, OBP, SLG, OPS, wOBA, wRC+, ERA, FIP, xFIP, Pythagorean win expectation, log5, ...), plus situational run-expectancy (RE24). Plain numbers in, plain numbers out.
 2. **MLB data** — `MLBClient`, a tiny client for the free, key-less [MLB Stats API](https://statsapi.mlb.com) (players, season stats, teams, rosters, schedules, standings, boxscores, play-by-play), with optional disk caching, retry with backoff, typo-tolerant player lookup, and concurrent bulk fetching for many players at once.
 3. **CSV/dict/array export** — `to_csv()`, `to_records()`/`to_dict()`, and `to_numpy()`/`to_dataframe()` turn a collection of stat lines (or Statcast rows) into CSV, plain Python data, or a numpy array/pandas DataFrame — no third-party library required unless you reach for the last two.
-4. **A terminal command** — `pyhomerun standings`, `pyhomerun scores`, `pyhomerun player "..."`, `pyhomerun export ...` for a quick look without writing any Python.
+4. **Power ratings and season simulation** — `EloRatings` for self-updating team Elo, and `simulate_remaining_season()`/`simulation_odds()` for Monte Carlo division and wild-card odds off those ratings (or plain win percentages) and the remaining schedule.
+5. **A terminal command** — `pyhomerun standings`, `pyhomerun scores`, `pyhomerun player "..."`, `pyhomerun elo`, `pyhomerun playoff-odds`, `pyhomerun export ...` for a quick look without writing any Python.
 
-It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python. `to_numpy()`/`to_dataframe()` are the one exception, and even those only `import numpy`/`import pandas` lazily, inside the function body, when you actually call them. As of v0.7.0 it's also been tuned for speed and memory where it actually matters for ML/AI workflows — see [Performance](#performance).
+It is built **entirely on the Python standard library** — installing it installs nothing else, and the test suite runs with stock Python. `to_numpy()`/`to_dataframe()` are the one exception, and even those only `import numpy`/`import pandas` lazily, inside the function body, when you actually call them. Where stdlib-only concurrency helps at scale, it's used: `MLBClient.player_stats_bulk()` and `simulate_remaining_season(max_workers=...)` both build on `concurrent.futures`. As of v0.7.0 the library's also been tuned for speed and memory where it matters for ML/AI workflows — see [Performance](#performance).
 
 ## Installation
 
@@ -131,6 +132,25 @@ bb.expected_wins(800, 700, games=162)     # 91.2 (Pythagenpat exponent)
 bb.magic_number(leader_wins=90, second_place_losses=60)   # 13
 ```
 
+### Team power ratings and playoff odds
+
+```python
+from pyhomerun import EloRatings, simulate_remaining_season, simulation_odds, top_n_qualifies
+
+elo = EloRatings()
+elo.record_game("Yankees", "Red Sox", home_score=5, away_score=3)
+elo.record_game("Red Sox", "Yankees", home_score=6, away_score=2)
+elo.ranked()                              # [("Red Sox", ~1500.0), ("Yankees", ~1500.0)] -- split series, near even
+
+current_wins = {"Yankees": 85, "Red Sox": 85}
+remaining = [("Yankees", "Red Sox"), ("Red Sox", "Yankees")]
+sims = simulate_remaining_season(current_wins, remaining, elo.win_probability)
+odds = simulation_odds(sims, top_n_qualifies(current_wins, n=1))
+odds["Yankees"]                           # ~0.75 -- fraction of simulated seasons the Yankees finished on top
+```
+
+No Elo history yet? `win_probability_from_win_pct()` builds the same `win_probability` callable straight from plain winning percentages (via `log5_win_probability()`), and `mlb_playoff_qualifiers(divisions, wildcard_spots=3)` models MLB's real division-winner-plus-wild-card format instead of a flat top-N. `pyhomerun elo` and `pyhomerun playoff-odds` run this whole pipeline against live MLB data from the terminal — see [From the terminal](#from-the-terminal).
+
 ### Situational stats: run expectancy
 
 ```python
@@ -198,6 +218,8 @@ pyhomerun player "Arron Judge"      # fuzzy: finds Aaron Judge despite the typo
 pyhomerun teams
 pyhomerun roster yankees
 pyhomerun export hitting yankees --out yankees.csv
+pyhomerun elo                        # power ratings from this season's completed games
+pyhomerun playoff-odds --season 2025 # Monte Carlo division/wild-card odds
 ```
 
 Responses are cached on disk for 5 minutes so re-running commands is instant and doesn't hammer the API. Same thing works as `python -m pyhomerun ...` if you'd rather not rely on the installed script being on `PATH`.
@@ -258,6 +280,28 @@ Every function has a full docstring with its formula and a worked example (`help
 | `pythagenpat_exponent(rs, ra, g)` | Environment-aware exponent |
 | `expected_wins(rs, ra, g)` | Expected win total (Pythagenpat) |
 | `magic_number(leader_wins, second_losses)` | Clinch magic number |
+| `log5_win_probability(win_pct_a, win_pct_b)` | Bill James's log5 head-to-head probability |
+
+### Elo power ratings
+
+| Class / function | What it does |
+|---|---|
+| `EloRatings(initial=None, k=4.0, home_field_advantage=24.0)` | A live, self-updating set of team ratings |
+| `.record_game(home, away, home_score, away_score)` | Update both teams' ratings from a final score |
+| `.win_probability(home, away)` | P(home wins), including home-field advantage |
+| `.regress_to_mean(factor=1/3, mean=1500.0)` | Pull ratings partway back to average between seasons |
+| `.ranked()` / `.ratings()` | Every team, strongest first / a plain `{team: rating}` snapshot |
+| `expected_score(rating_a, rating_b)` / `update_elo(rating_a, rating_b, score_a, k=4.0)` | The underlying Elo logistic curve and update, without home-field or state |
+
+### Monte Carlo season simulation
+
+| Function | What it does |
+|---|---|
+| `simulate_remaining_season(current_wins, remaining_games, win_probability, n_simulations=10000, rng=None, max_workers=None)` | Replays the rest of a season `n_simulations` times; `{team: [final_win_total, ...]}` |
+| `simulation_odds(simulated_wins, qualifies)` | Fraction of simulations in which each team qualifies, given a `qualifies` rule |
+| `top_n_qualifies(teams, n)` | `qualifies` factory: the `n` teams with the most wins |
+| `mlb_playoff_qualifiers(divisions, wildcard_spots=3)` | `qualifies` factory shaped like MLB's real format: division winners plus pooled wild cards |
+| `win_probability_from_win_pct(win_pct)` | `win_probability` adapter built on `log5_win_probability()` — no `EloRatings` required |
 
 ### Situational
 
@@ -292,7 +336,7 @@ Every function has a full docstring with its formula and a worked example (`help
 | `.player_stats(id, group, stat_type, season)` | Stat splits (`"hitting"`/`"pitching"`/`"fielding"`; `"season"`/`"career"`/`"yearByYear"`/`"gameLog"`) |
 | `.player_stats_bulk(player_ids, group, stat_type, season, max_workers=8)` | `{player_id: splits}` for many players at once, fetched concurrently — see [Performance](#performance) |
 | `.teams(season)` / `.roster(team_id)` | Teams / active roster |
-| `.schedule(date, team_id)` | Games for a date (default today) |
+| `.schedule(date, team_id, start_date, end_date)` | Games for a date (default today), or a `start_date`/`end_date` range (e.g. a full season) |
 | `.standings(season)` | Division standings |
 | `.boxscore(game_pk)` / `.linescore(game_pk)` | Game details |
 | `.play_by_play(game_pk)` | Every play of a game, in order |
@@ -345,7 +389,7 @@ python -m unittest discover tests -v
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for what's planned — a Monte Carlo season/playoff simulator next, then a 1.0.0 that promotes Statcast/play-by-play to first-class and closes out remaining coverage gaps before the public API locks in. All still zero required third-party dependencies (`to_numpy()`/`to_dataframe()` are opt-in extras, never a hard install). That constraint is the project's core mission, not a starting default — see [Performance](#performance) for how v0.7.0 made it faster without loosening it.
+See [ROADMAP.md](ROADMAP.md) for what's planned — a 1.0.0 that promotes Statcast/play-by-play to first-class, adds standings/schedule helpers, and closes out remaining coverage gaps before the public API locks in. All still zero required third-party dependencies (`to_numpy()`/`to_dataframe()` are opt-in extras, never a hard install). That constraint is the project's core mission, not a starting default — see [Performance](#performance) for how v0.7.0 made it faster without loosening it.
 
 ## Contributing
 
