@@ -39,6 +39,14 @@ from .batting import (
     wrc_plus,
 )
 from .constants import DEFAULT_FIP_CONSTANT, DEFAULT_WOBA_WEIGHTS, WobaWeights
+from .elo import (
+    DEFAULT_HOME_FIELD_ADVANTAGE,
+    DEFAULT_K,
+    DEFAULT_RATING,
+    EloRatings,
+    expected_score,
+    update_elo,
+)
 from .export import to_csv, to_dataframe, to_dict, to_numpy, to_records
 from .fielding import (
     caught_stealing_percentage,
@@ -149,5 +157,12 @@ __all__ = [
     # Statcast
     "StatcastClient",
     "StatcastError",
+    # Elo power ratings
+    "EloRatings",
+    "expected_score",
+    "update_elo",
+    "DEFAULT_RATING",
+    "DEFAULT_K",
+    "DEFAULT_HOME_FIELD_ADVANTAGE",
     "__version__",
 ]
