@@ -69,6 +69,7 @@ from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
 from .statcast import StatcastClient, StatcastError
 from .team import (
     expected_wins,
+    log5_win_probability,
     magic_number,
     pythagenpat_exponent,
     pythagorean_expectation,
@@ -118,6 +119,7 @@ __all__ = [
     "pythagenpat_exponent",
     "expected_wins",
     "magic_number",
+    "log5_win_probability",
     # stat lines
     "BattingLine",
     "PitchingLine",

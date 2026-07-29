@@ -14,6 +14,7 @@ __all__ = [
     "pythagenpat_exponent",
     "expected_wins",
     "magic_number",
+    "log5_win_probability",
 ]
 
 #: Exponent used by the Pythagenpat formula (David Smyth / Patriot).
@@ -102,3 +103,25 @@ def magic_number(
     13
     """
     return season_games + 1 - leader_wins - second_place_losses
+
+
+def log5_win_probability(win_pct_a: float, win_pct_b: float) -> float:
+    """Bill James's log5: probability team A beats team B, from each
+    team's overall winning percentage (e.g. from :func:`pythagorean_expectation`
+    or a raw W-L record).
+
+    Formula: ``(a - a*b) / (a + b - 2*a*b)``
+
+    Degenerates to ``0.5`` when the denominator is zero, which only
+    happens at the extremes (e.g. both teams 0.000 or both 1.000) where
+    there's no information to break the tie.
+
+    >>> round(log5_win_probability(0.600, 0.400), 3)
+    0.692
+    >>> log5_win_probability(0.500, 0.500)
+    0.5
+    """
+    denominator = win_pct_a + win_pct_b - 2 * win_pct_a * win_pct_b
+    if not denominator:
+        return 0.5
+    return (win_pct_a - win_pct_a * win_pct_b) / denominator

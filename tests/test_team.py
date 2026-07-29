@@ -58,5 +58,24 @@ class TestMagicNumber(unittest.TestCase):
         self.assertLessEqual(bb.magic_number(leader_wins=100, second_place_losses=63), 0)
 
 
+class TestLog5(unittest.TestCase):
+    def test_better_team_favored(self):
+        self.assertGreater(bb.log5_win_probability(0.600, 0.400), 0.5)
+
+    def test_symmetric(self):
+        p = bb.log5_win_probability(0.600, 0.400)
+        self.assertAlmostEqual(bb.log5_win_probability(0.400, 0.600), 1 - p, places=6)
+
+    def test_even_teams_is_half(self):
+        self.assertEqual(bb.log5_win_probability(0.500, 0.500), 0.5)
+
+    def test_known_value(self):
+        self.assertAlmostEqual(bb.log5_win_probability(0.600, 0.400), 0.692, places=3)
+
+    def test_degenerate_case_falls_back_to_half(self):
+        self.assertEqual(bb.log5_win_probability(0.0, 0.0), 0.5)
+        self.assertEqual(bb.log5_win_probability(1.0, 1.0), 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()
