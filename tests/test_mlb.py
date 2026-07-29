@@ -149,6 +149,14 @@ class TestEndpoints(unittest.TestCase):
         games = client.schedule(date="2025-07-04")
         self.assertEqual([g["gamePk"] for g in games], [1, 2, 3])
 
+    def test_schedule_date_range_builds_start_end_params(self):
+        client = self._client_returning({"dates": []})
+        client.schedule(start_date="2025-03-01", end_date="2025-10-01")
+        url = self.urlopen.call_args[0][0].full_url
+        self.assertIn("startDate=2025-03-01", url)
+        self.assertIn("endDate=2025-10-01", url)
+        self.assertNotIn("date=", url)
+
     def test_standings_unwraps_records(self):
         client = self._client_returning({"records": [{"division": {"id": 201}}]})
         records = client.standings(season=2025)

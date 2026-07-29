@@ -3,7 +3,9 @@
 import contextlib
 import io
 import unittest
+from unittest import mock
 
+import pyhomerun.cli
 from pyhomerun.cli import main
 from pyhomerun.mlb import MLBAPIError
 
@@ -20,16 +22,56 @@ class StubClient:
         return [
             {
                 "division": {"id": 201},
+                "league": {"id": 103},
                 "teamRecords": [
-                    {"team": {"name": "New York Yankees"}, "wins": 90, "losses": 60,
+                    {"team": {"id": 147, "name": "New York Yankees"}, "wins": 90, "losses": 60,
                      "winningPercentage": ".600", "gamesBack": "-"},
-                    {"team": {"name": "Boston Red Sox"}, "wins": 84, "losses": 66,
+                    {"team": {"id": 111, "name": "Boston Red Sox"}, "wins": 84, "losses": 66,
                      "winningPercentage": ".560", "gamesBack": "6.0"},
                 ],
             }
         ]
 
-    def schedule(self, date=None, team_id=None):
+    def schedule(self, date=None, team_id=None, start_date=None, end_date=None):
+        if start_date or end_date:
+            return [
+                {
+                    "gameType": "R",
+                    "gameDate": "2025-04-01T17:05:00Z",
+                    "status": {"abstractGameState": "Final", "detailedState": "Final"},
+                    "teams": {
+                        "away": {"team": {"id": 111, "name": "Boston Red Sox"}, "score": 3},
+                        "home": {"team": {"id": 147, "name": "New York Yankees"}, "score": 5},
+                    },
+                },
+                {
+                    "gameType": "R",
+                    "gameDate": "2025-04-02T17:05:00Z",
+                    "status": {"abstractGameState": "Final", "detailedState": "Final"},
+                    "teams": {
+                        "away": {"team": {"id": 147, "name": "New York Yankees"}, "score": 2},
+                        "home": {"team": {"id": 111, "name": "Boston Red Sox"}, "score": 6},
+                    },
+                },
+                {
+                    "gameType": "S",  # spring training -- must be excluded
+                    "gameDate": "2025-03-01T17:05:00Z",
+                    "status": {"abstractGameState": "Final", "detailedState": "Final"},
+                    "teams": {
+                        "away": {"team": {"id": 111, "name": "Boston Red Sox"}, "score": 1},
+                        "home": {"team": {"id": 147, "name": "New York Yankees"}, "score": 10},
+                    },
+                },
+                {
+                    "gameType": "R",
+                    "gameDate": "2025-09-28T17:05:00Z",
+                    "status": {"abstractGameState": "Preview", "detailedState": "Scheduled"},
+                    "teams": {
+                        "away": {"team": {"id": 111, "name": "Boston Red Sox"}, "score": None},
+                        "home": {"team": {"id": 147, "name": "New York Yankees"}, "score": None},
+                    },
+                },
+            ]
         return [
             {
                 "teams": {
@@ -130,6 +172,35 @@ class TestCli(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(out, "")
             self.assertIn("Aaron Judge", out_path.read_text())
+
+    def test_elo_ranks_teams_from_completed_games(self):
+        code, out = run_cli("elo", "--season", "2025")
+        self.assertEqual(code, 0)
+        self.assertIn("New York Yankees", out)
+        self.assertIn("Boston Red Sox", out)
+        # Only the two "R" games count; the "S" (spring training) blowout
+        # must not have moved either rating.
+        self.assertNotIn("1600", out)
+
+    def test_playoff_odds_reports_every_standings_team(self):
+        code, out = run_cli("playoff-odds", "--season", "2025", "--simulations", "50")
+        self.assertEqual(code, 0)
+        self.assertIn("New York Yankees", out)
+        self.assertIn("Boston Red Sox", out)
+        self.assertIn("Playoff odds", out)
+
+    def test_playoff_odds_uses_requested_simulation_count(self):
+        captured = {}
+        real_simulate = pyhomerun.cli.simulate_remaining_season
+
+        def spy(*args, **kwargs):
+            captured["n_simulations"] = kwargs.get("n_simulations")
+            return real_simulate(*args, **kwargs)
+
+        with mock.patch("pyhomerun.cli.simulate_remaining_season", side_effect=spy):
+            code, _ = run_cli("playoff-odds", "--season", "2025", "--simulations", "77")
+        self.assertEqual(code, 0)
+        self.assertEqual(captured["n_simulations"], 77)
 
     def test_api_error_returns_nonzero(self):
         class FailingClient(StubClient):

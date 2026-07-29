@@ -39,6 +39,14 @@ from .batting import (
     wrc_plus,
 )
 from .constants import DEFAULT_FIP_CONSTANT, DEFAULT_WOBA_WEIGHTS, WobaWeights
+from .elo import (
+    DEFAULT_HOME_FIELD_ADVANTAGE,
+    DEFAULT_K,
+    DEFAULT_RATING,
+    EloRatings,
+    expected_score,
+    update_elo,
+)
 from .export import to_csv, to_dataframe, to_dict, to_numpy, to_records
 from .fielding import (
     caught_stealing_percentage,
@@ -65,17 +73,25 @@ from .pitching import (
     whip,
     xfip,
 )
+from .simulate import (
+    mlb_playoff_qualifiers,
+    simulate_remaining_season,
+    simulation_odds,
+    top_n_qualifies,
+    win_probability_from_win_pct,
+)
 from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
 from .statcast import StatcastClient, StatcastError
 from .team import (
     expected_wins,
+    log5_win_probability,
     magic_number,
     pythagenpat_exponent,
     pythagorean_expectation,
     run_differential,
 )
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = [
     # batting
@@ -118,6 +134,7 @@ __all__ = [
     "pythagenpat_exponent",
     "expected_wins",
     "magic_number",
+    "log5_win_probability",
     # stat lines
     "BattingLine",
     "PitchingLine",
@@ -147,5 +164,18 @@ __all__ = [
     # Statcast
     "StatcastClient",
     "StatcastError",
+    # Elo power ratings
+    "EloRatings",
+    "expected_score",
+    "update_elo",
+    "DEFAULT_RATING",
+    "DEFAULT_K",
+    "DEFAULT_HOME_FIELD_ADVANTAGE",
+    # Monte Carlo season simulation
+    "simulate_remaining_season",
+    "simulation_odds",
+    "top_n_qualifies",
+    "mlb_playoff_qualifiers",
+    "win_probability_from_win_pct",
     "__version__",
 ]

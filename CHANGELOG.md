@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 (2026-07-29)
+
+Still zero dependencies. v0.7.0 was all performance; this one is new features — team power ratings and a season simulator, aimed at the same ML/analysis audience as the v0.6.0 export work.
+
+- New `pyhomerun.elo` module: `EloRatings`, a self-updating Elo power-rating system (`record_game()`, `win_probability()`, `regress_to_mean()` for carrying ratings across seasons, `ranked()`). Standard Elo logistic curve (`expected_score()`, `update_elo()`) plus a conservative MLB-appropriate `K=4` and a `24`-point home-field bump, both overridable.
+- New `pyhomerun.simulate` module: `simulate_remaining_season()` Monte Carlo simulates the rest of a season from a `win_probability` callable (an `EloRatings.win_probability`, or the new `win_probability_from_win_pct()` adapter built on log5 if you'd rather not track Elo). `simulation_odds()` turns simulated final standings into odds for any qualification rule; `top_n_qualifies()` and `mlb_playoff_qualifiers()` (division winners + per-league wild cards) cover the common cases.
+  - Performance: `win_probability` is evaluated once per unique remaining game, not once per game per simulation, and the per-simulation inner loop works over integer team indices into plain lists rather than dict lookups by team name. For large workloads, pass `max_workers` to spread simulations across a `concurrent.futures.ProcessPoolExecutor` — the same bulk-fetch pattern `MLBClient.player_stats_bulk()` uses for concurrent network calls, applied here to CPU-bound simulation.
+- New `pyhomerun.team.log5_win_probability()`: Bill James's log5 formula, the classic way to turn two teams' win percentages into a head-to-head probability — the no-Elo-required path into `simulate_remaining_season()`.
+- `MLBClient.schedule()` gained `start_date`/`end_date` for pulling a date range (a full season) in one call, alongside the existing single-day `date`.
+- Two new CLI commands: `pyhomerun elo` (power ratings from this season's completed games) and `pyhomerun playoff-odds` (Monte Carlo division/wild-card odds from those ratings plus the remaining schedule) — a real, live-data demonstration of both new modules together.
+
 ## 0.7.0 (2026-07-28)
 
 Still zero dependencies. This release is entirely about performance and memory footprint — every number below is measured in `benchmarks/bench.py`, run it yourself with `python benchmarks/bench.py`.
