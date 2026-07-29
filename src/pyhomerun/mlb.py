@@ -335,13 +335,32 @@ class MLBClient:
         self,
         date: Optional[str] = None,
         team_id: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
     ) -> List[JSONDict]:
         """Games for a date (``"YYYY-MM-DD"``, default today), flattened.
+
+        Args:
+            date: A single day. This is the default mode; omit for today.
+            team_id: Restrict to one team's games.
+            start_date: Start of a date range (inclusive) -- pass with
+                ``end_date`` instead of ``date`` to pull a whole season
+                (or any other span) in one call, e.g. for building
+                :class:`~pyhomerun.EloRatings` or feeding
+                :func:`~pyhomerun.simulate_remaining_season`.
+            end_date: End of a date range (inclusive).
 
         Each game dict includes ``gamePk``, ``status``, ``teams`` (with
         scores), and ``venue``.
         """
-        data = self.get("/schedule", sportId=MLB_SPORT_ID, date=date, teamId=team_id)
+        data = self.get(
+            "/schedule",
+            sportId=MLB_SPORT_ID,
+            date=date,
+            teamId=team_id,
+            startDate=start_date,
+            endDate=end_date,
+        )
         games: List[JSONDict] = []
         for day in data.get("dates", []):
             games.extend(day.get("games", []))
