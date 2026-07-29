@@ -73,6 +73,13 @@ from .pitching import (
     whip,
     xfip,
 )
+from .simulate import (
+    mlb_playoff_qualifiers,
+    simulate_remaining_season,
+    simulation_odds,
+    top_n_qualifies,
+    win_probability_from_win_pct,
+)
 from .situational import RE24_TABLE, BaseOutState, run_expectancy, run_value
 from .statcast import StatcastClient, StatcastError
 from .team import (
@@ -164,5 +171,11 @@ __all__ = [
     "DEFAULT_RATING",
     "DEFAULT_K",
     "DEFAULT_HOME_FIELD_ADVANTAGE",
+    # Monte Carlo season simulation
+    "simulate_remaining_season",
+    "simulation_odds",
+    "top_n_qualifies",
+    "mlb_playoff_qualifiers",
+    "win_probability_from_win_pct",
     "__version__",
 ]
