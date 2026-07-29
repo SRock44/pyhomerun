@@ -9,6 +9,8 @@ Installed as a console command by pip, and also runnable as
     pyhomerun teams
     pyhomerun roster "yankees"
     pyhomerun export hitting "yankees" --out yankees.csv
+    pyhomerun elo
+    pyhomerun playoff-odds --season 2025
 
 Data comes from the free MLB Stats API; responses are cached for five
 minutes so repeated commands are fast and polite.
@@ -19,12 +21,15 @@ from __future__ import annotations
 import argparse
 import difflib
 import sys
-from typing import Any, Dict, List, Optional, Sequence
+from datetime import date
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from . import __version__
+from .elo import EloRatings
 from .export import to_csv
 from .lines import BattingLine, PitchingLine
 from .mlb import MLBAPIError, MLBClient
+from .simulate import mlb_playoff_qualifiers, simulate_remaining_season, simulation_odds
 
 #: How long CLI responses are cached, in seconds.
 CACHE_TTL = 300.0
@@ -169,6 +174,114 @@ def _cmd_export(mlb: MLBClient, args: argparse.Namespace) -> int:
     return 0
 
 
+def _division_names(mlb: MLBClient) -> Dict[int, str]:
+    return {d["id"]: d["name"] for d in mlb.get("/divisions", sportId=1).get("divisions", [])}
+
+
+def _season_games(mlb: MLBClient, season: int) -> List[Dict[str, Any]]:
+    """Regular-season MLB games for a season, in chronological order.
+
+    Excludes spring training and exhibition games (``gameType`` ``"S"``/
+    ``"E"``) and the All-Star Game (``"A"``) -- the schedule endpoint
+    includes all of these under the same MLB ``sportId``, but none of
+    them are meaningful signal for team strength or a playoff race.
+    """
+    games = mlb.schedule(start_date=f"{season}-01-01", end_date=f"{season}-12-31")
+    regular_season = [g for g in games if g.get("gameType") == "R"]
+    return sorted(regular_season, key=lambda g: g.get("gameDate", ""))
+
+
+def _elo_from_games(games: List[Dict[str, Any]]) -> EloRatings:
+    """Build Elo ratings from every game with a decisive final score.
+
+    Deliberately keyed off score presence rather than ``status.detailedState``:
+    the schedule endpoint marks some games with real final scores as
+    ``"Completed Early"`` (rain-shortened) rather than ``"Final"``, and marks
+    some rained-out games with no makeup as ``"Postponed"`` while still
+    reporting them as closed (``abstractGameState`` ``"Final"``) with no
+    score at all. A present, unequal score is what actually means "this game
+    happened and here's the result" -- everything else is noise.
+    """
+    elo = EloRatings()
+    for game in games:
+        away, home = game["teams"]["away"], game["teams"]["home"]
+        home_score, away_score = home.get("score"), away.get("score")
+        if home_score is None or away_score is None or home_score == away_score:
+            continue
+        elo.record_game(home["team"]["name"], away["team"]["name"], home_score, away_score)
+    return elo
+
+
+def _cmd_elo(mlb: MLBClient, args: argparse.Namespace) -> int:
+    season = args.season or date.today().year
+    elo = _elo_from_games(_season_games(mlb, season))
+    rows = [(i + 1, team, f"{rating:.1f}") for i, (team, rating) in enumerate(elo.ranked())]
+    print(_table(("#", "Team", "Elo"), rows))
+    return 0
+
+
+def _mlb_playoff_qualifies(
+    by_league: Dict[Any, Dict[str, List[str]]]
+) -> Callable[[Dict[str, int]], Set[str]]:
+    """Combines per-league :func:`mlb_playoff_qualifiers` (AL and NL each
+    have their own 3 wild-card spots, not a single MLB-wide pool)."""
+    per_league = [mlb_playoff_qualifiers(divisions, wildcard_spots=3) for divisions in by_league.values()]
+
+    def qualifies(final_wins: Dict[str, int]) -> Set[str]:
+        result: Set[str] = set()
+        for one_league in per_league:
+            result |= set(one_league(final_wins))
+        return result
+
+    return qualifies
+
+
+def _cmd_playoff_odds(mlb: MLBClient, args: argparse.Namespace) -> int:
+    season = args.season or date.today().year
+    games = _season_games(mlb, season)
+    elo = _elo_from_games(games)
+
+    # A game is still to be played if the API hasn't closed its record yet
+    # (abstractGameState "Preview"/"Live") -- unlike detailedState, this
+    # isn't fooled by "Postponed"/"Completed Early" placeholders for games
+    # that already happened one way or another (see _elo_from_games).
+    remaining: List[Tuple[str, str]] = [
+        (game["teams"]["home"]["team"]["name"], game["teams"]["away"]["team"]["name"])
+        for game in games
+        if game.get("status", {}).get("abstractGameState") != "Final"
+    ]
+
+    # standings() teamRecords only carry each team's short name ("Blue Jays"),
+    # while schedule() (and therefore `elo` and `remaining` above) uses the
+    # full name ("Toronto Blue Jays") -- normalize through team id via
+    # teams() so Elo ratings, current win totals, and division groupings
+    # all agree on one name per team.
+    full_names = {team["id"]: team["name"] for team in mlb.teams(season=season)}
+
+    division_names = _division_names(mlb)
+    by_league: Dict[Any, Dict[str, List[str]]] = {}
+    current_wins: Dict[str, int] = {}
+    for record in mlb.standings(season=season):
+        league_id = record.get("league", {}).get("id")
+        division_id = record.get("division", {}).get("id")
+        name = division_names.get(division_id, str(division_id))
+        team_names = []
+        for team in record.get("teamRecords", []):
+            team_id = team["team"]["id"]
+            team_name = full_names.get(team_id, team["team"]["name"])
+            team_names.append(team_name)
+            current_wins[team_name] = team.get("wins", 0)
+        by_league.setdefault(league_id, {})[name] = team_names
+
+    sims = simulate_remaining_season(
+        current_wins, remaining, elo.win_probability, n_simulations=args.simulations
+    )
+    odds = simulation_odds(sims, _mlb_playoff_qualifies(by_league))
+    rows = sorted(odds.items(), key=lambda item: item[1], reverse=True)
+    print(_table(("Team", "Playoff odds"), [(team, f"{pct:.1%}") for team, pct in rows]))
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pyhomerun",
@@ -204,6 +317,19 @@ def _build_parser() -> argparse.ArgumentParser:
     export.add_argument("--season", type=int, default=None)
     export.add_argument("--out", default=None, help="write to a file instead of stdout")
     export.set_defaults(func=_cmd_export)
+
+    elo = sub.add_parser("elo", help="team power ratings from this season's completed games")
+    elo.add_argument("--season", type=int, default=None)
+    elo.set_defaults(func=_cmd_elo)
+
+    playoff_odds = sub.add_parser(
+        "playoff-odds", help="Monte Carlo playoff odds from Elo ratings and the remaining schedule"
+    )
+    playoff_odds.add_argument("--season", type=int, default=None)
+    playoff_odds.add_argument(
+        "--simulations", type=int, default=2000, help="number of simulated seasons (default: 2000)"
+    )
+    playoff_odds.set_defaults(func=_cmd_playoff_odds)
 
     return parser
 
